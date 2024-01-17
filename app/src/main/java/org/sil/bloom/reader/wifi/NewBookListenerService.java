@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.IBinder;
+import android.util.Log;  // WM, added
 import androidx.annotation.Nullable;
 
 import org.json.JSONException;
@@ -19,6 +20,11 @@ import org.sil.bloom.reader.models.BookCollection;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.io.DataOutputStream;  // WM, added
+import java.io.OutputStream;      // WM, added
+import java.io.InputStream;       // WM, added
+import java.net.Socket;           // WM, added
+import java.net.ServerSocket;     // WM, added
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -73,29 +79,48 @@ public class NewBookListenerService extends Service {
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         multicastLock = wifi.createMulticastLock("lock");
         multicastLock.acquire();
+        Log.d("WM","listen: took multicastLock");  // WM, temporary
 
         try {
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
             //Log.e("UDP", "Waiting for UDP broadcast");
+            Log.d("WM","listen: waiting for packet");  // WM, temporary
             socket.receive(packet);
-            if (gettingBook)
+
+            // WM, temporary - show a packet received and print its payload
+            Log.d("WM","listen: got packet from " + packet.getAddress().getHostAddress());
+            int packetLen = 144;
+            byte[] b = packet.getData();
+            String packetString = "";
+            for (int i=0; i<packetLen; i++) {
+                packetString += String.format("%c", b[i]);  // can also do %x (hex) then stringify in HxD
+            }
+            Log.d("WM","  advertisement = " + packetString);
+            // WM, end of temporary packet print
+
+            if (gettingBook) {
+                Log.d("WM","listen: ignore advert, getting book");  // WM, temporary
                 return; // ignore new advertisements while downloading. Will receive again later.
+            }
             if (addsToSkipBeforeRetry > 0) {
                 // We ignore a few adds after requesting a book before we (hopefully) start receiving.
                 addsToSkipBeforeRetry--;
+                Log.d("WM","listen: ignore advert, decr'd addsToSkipBeforeRetry, now = " + addsToSkipBeforeRetry);  // WM, temporary
                 return;
             }
             String senderIP = packet.getAddress().getHostAddress();
             String message = new String(packet.getData()).trim();
-            JSONObject data = new JSONObject(message);
-            String title = data.getString("title");
-            String newBookVersion = data.getString("version");
+            //Log.d("WM","  data = " + ret);
+            JSONObject msgJson = new JSONObject(message);
+            String title = msgJson.getString("title");
+            String newBookVersion = msgJson.getString("version");
             String sender = "unknown";
             String protocolVersion = "0.0";
             try {
-                protocolVersion = data.getString("protocolVersion");
-                sender = data.getString("sender");
+                protocolVersion = msgJson.getString("protocolVersion");
+                sender = msgJson.getString("sender");
             } catch(JSONException e) {
+                Log.d("WM","listen: JSONException-1, " + e);  // WM, temporary
                 e.printStackTrace();
             }
             float version = Float.parseFloat(protocolVersion);
@@ -104,6 +129,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of Bloom editor to exchange data with this BloomReader\n");
                     reportedVersionProblem = true;
                 }
+                Log.d("WM","listen: problem-1 with version (" + version + "), returning");  // WM, temporary
                 return;
             } else if (version >= 3.0f) {
                 // Desktop currently uses 2.0 exactly; the plan is that non-breaking changes
@@ -112,6 +138,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of BloomReader to exchange data with this sender\n");
                     reportedVersionProblem = true;
                 }
+                Log.d("WM","listen: problem-2 with version (" + version + "), returning");  // WM, temporary
                 return;
             }
             File bookFile = IOUtilities.getBookFileIfExists(title);
@@ -135,25 +162,34 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.already_have_version), title) + "\n\n");
                     _announcedBooks.add(title); // don't keep saying this.
                 }
+                Log.d("WM","listen: already have book");  // WM, temporary
             }
             else {
-                if (bookExists)
+                if (bookExists) {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
-                else
+                }
+                else {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), title, sender) + "\n");
+                }
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
                 addsToSkipBeforeRetry = 3;
-                getBook(senderIP, title);
+                //Log.d("WM","listen: calling getBook() with " + senderIP);  // WM, temporary
+                //getBook(senderIP, title);
+                Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
+                getBook_tcp(senderIP, title);
+                Log.d("WM","listen: getBook_tcp() returned");  // WM, temporary
             }
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
             // the data we expect.
+            Log.d("WM","listen: JSONException-2, " + e);  // WM, temporary
             e.printStackTrace();
         }
         finally {
             socket.close();
             multicastLock.release();
+            Log.d("WM","listen: closed UDP socket, released multicastLock");  // WM, temporary
         }
     }
 
@@ -180,6 +216,7 @@ public class NewBookListenerService extends Service {
 
         @Override
         public void receivedFile(String name, boolean success) {
+            Log.d("WM","receivedFile: calling transferComplete()");  // WM, temporary
             _parent.transferComplete(success);
             if (success) {
                 // We won't announce subsequent up-to-date advertisements for this book.
@@ -189,9 +226,11 @@ public class NewBookListenerService extends Service {
         }
     }
 
+    /*
     private void getBook(String sourceIP, String title) {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
         // This server will be sent the actual book data (and the final notification)
+        Log.d("WM","getBook: calling startSyncServer()");  // WM, temporary
         startSyncServer();
         // Send one package to the desktop to request the book. Its contents tell the desktop
         // what IP address to use.
@@ -199,13 +238,101 @@ public class NewBookListenerService extends Service {
         sendMessageTask.desktopIpAddress = sourceIP;
         sendMessageTask.ourIpAddress = getOurIpAddress();
         sendMessageTask.ourDeviceName = getOurDeviceName();
+        Log.d("WM","getBook: requesting Desktop at " + sourceIP + " for " + title);  // WM, temporary
+        Log.d("WM","  our IP = " + sendMessageTask.ourIpAddress + ", our device = " + sendMessageTask.ourDeviceName);  // WM, temporary
         sendMessageTask.execute();
+    }
+    */
+
+    private void getBook_tcp(String ip, String title) {
+        // WM, not sure what all this handler does
+        AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
+
+        // This server will be sent the actual book data (and the final notification). Start it now
+        // before sending the book request to ensure it's ready if the reply is quick.
+        Log.d("WM","getBook_tcp: calling startSyncServer()");  // WM, temporary
+        startSyncServer();
+
+        // port used must match '_portToListen' on Desktop side, in BloomReaderTCPListener
+        //int targetPort = 5915;
+        int targetPort = 80;  // temporarily use standard HTTP port to debug connection issue
+        Socket socket = null;
+        //ServerSocket serverSocket = null;
+        OutputStream outStream = null;
+        InputStream inStream = null;
+        // targetIP = null;
+
+        try {
+            // Establish a connection.
+            //InetAddress localHost = InetAddress.getLocalHost();
+            //Log.d("WM","getBook_tcp: our IP address is " + localHost.getHostAddress());
+            Log.d("WM","getBook_tcp: our IP address is " + getOurIpAddress());
+            Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + targetPort);
+            //socket = new Socket(targetIP, targetPort);
+            //int targetIP = ipStringToInt(ip);
+            //serverSocket = new ServerSocket(targetIP, targetPort);
+            //Log.d("WM","getBook_tcp: serverSocket established");
+            //socket = serverSocket.accept();  // need "final" ??
+            socket = new Socket(ip, targetPort);
+            Log.d("WM","getBook_tcp: got TCP socket; CONNECTED");
+
+            // Create and send message to Desktop.
+            outStream = new DataOutputStream(socket.getOutputStream());
+            //String outString = "Test Java client on M72e";  // !!!!! REPLACE !!!!!
+            //byte[] outBuf = outString.getBytes();
+            //outStream.write(outBuf);
+            //Log.d("WM","getBook_tcp: Message sent to server, " + outBuf.length + " bytes:");
+            //Log.d("WM","  " + outString);
+            JSONObject bookRequest = new JSONObject();
+            Log.d("WM","getBook_tcp: JSON reply object created, fill it out");
+            try {
+                // names used here must match those in Bloom WiFiAdvertiser.Start(),
+                // in the event handler for _wifiListener.NewMessageReceived.
+                bookRequest.put("deviceAddress", getOurIpAddress());
+                bookRequest.put("deviceName", getOurDeviceName());
+            } catch (JSONException e) {
+                // How could these fail?? But compiler demands we catch this.
+                Log.d("WM","getBook_tcp: JSONException-1, " + e);
+                e.printStackTrace();
+            }
+            byte[] outBuf = bookRequest.toString().getBytes("UTF-8");
+            outStream.write(outBuf);
+            Log.d("WM","getBook_tcp: JSON message sent to server, " + outBuf.length + " bytes:");
+            Log.d("WM","  " + outBuf);
+
+            // Receive a reply: stream > byte array > string. Create byte array,
+            // larger than needed, then read incoming reply into it.
+            //InputStream inStream = socket.getInputStream();
+            //byte[] inBuf = new byte[1024];
+            //int inLen = inStream.read(inBuf);
+
+            // Create String to hold what was read, but no more.
+            //String inString = new String(inBuf, 0, inLen);
+            //Log.d("WM","getBook_tcp: Reply received from server, " + inLen + " bytes:");
+            //Log.d("WM","  " + inString);
+        }
+        catch (IOException i) {
+            Log.d("WM","getBook_tcp: IOException-1, " + i);
+            return;
+        }
+
+        // Close the connection.
+        try {
+            inStream.close();
+            outStream.close();
+            socket.close();
+            Log.d("WM","getBook_tcp: connection closed");
+        }
+        catch (IOException i) {
+            Log.d("WM","getBook_tcp: IOException-2, " + i);
+        }
     }
 
     private void startSyncServer() {
         if (httpServiceRunning)
             return;
         Intent serviceIntent = new Intent(this, SyncService.class);
+        Log.d("WM","startSyncServer: calling startService()");  // WM, temporary
         startService(serviceIntent);
         httpServiceRunning = true;
     }
@@ -214,6 +341,7 @@ public class NewBookListenerService extends Service {
         if (!httpServiceRunning)
             return;
         Intent serviceIntent = new Intent(this, SyncService.class);
+        Log.d("WM","stopSyncServer: calling stopService()");  // WM, temporary
         stopService(serviceIntent);
         httpServiceRunning = false;
     }
@@ -221,6 +349,7 @@ public class NewBookListenerService extends Service {
     // Called via EndOfTransferListener when desktop sends transfer complete notification.
     private void transferComplete(boolean success) {
         // We can stop listening for file transfers and notifications from the desktop.
+        Log.d("WM","transferComplete: calling stopSyncServer()");  // WM, temporary
         stopSyncServer();
         gettingBook = false;
 
@@ -301,6 +430,7 @@ public class NewBookListenerService extends Service {
                 try {
                     Integer port = 5913; // Must match port in Bloom class WiFiAdvertiser
                     while (shouldRestartSocketListen) { //
+                        Log.d("WM","startListenForUDPBroadcast: calling listen(" + port + ")");  // WM, temporary
                         listen(port);
                     }
                     //if (!shouldListenForUDPBroadcast) throw new ThreadDeath();
@@ -326,6 +456,7 @@ public class NewBookListenerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         shouldRestartSocketListen = true;
+        Log.d("WM","onStartCommand: calling startListenForUDPBroadcast()");  // WM, temporary
         startListenForUDPBroadcast();
         //Log.i("UDP", "Service started");
         return START_STICKY;
@@ -361,5 +492,20 @@ public class NewBookListenerService extends Service {
             }
             return null;
         }
+    }
+
+    // Based on code from https://mkyong.com/java/java-convert-ip-address-to-decimal-number/
+    private int ipStringToInt(String ipAddress)
+    {
+        String[] ipAddressInArray = ipAddress.split("\\.");
+
+        int result = 0;
+        for (int i = 0; i < ipAddressInArray.length; i++) {
+
+            int power = 3 - i;
+            int ip = Integer.parseInt(ipAddressInArray[i]);
+            result += ip * Math.pow(256, power);
+        }
+        return result;
     }
 }
