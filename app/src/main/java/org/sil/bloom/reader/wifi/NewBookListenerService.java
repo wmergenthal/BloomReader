@@ -255,7 +255,7 @@ public class NewBookListenerService extends Service {
 
         // port used must match '_portToListen' on Desktop side, in BloomReaderTCPListener
         //int targetPort = 5915;
-        int targetPort = 80;  // temporarily use standard HTTP port to debug connection issue
+        //int targetPort = 80;  // temporarily use standard HTTP port to debug connection issue
         Socket socket = null;
         //ServerSocket serverSocket = null;
         OutputStream outStream = null;
@@ -264,16 +264,15 @@ public class NewBookListenerService extends Service {
 
         try {
             // Establish a connection.
-            //InetAddress localHost = InetAddress.getLocalHost();
-            //Log.d("WM","getBook_tcp: our IP address is " + localHost.getHostAddress());
-            Log.d("WM","getBook_tcp: our IP address is " + getOurIpAddress());
-            Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + targetPort);
+            //Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + targetPort);
+            Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + desktopPort);
             //socket = new Socket(targetIP, targetPort);
             //int targetIP = ipStringToInt(ip);
             //serverSocket = new ServerSocket(targetIP, targetPort);
             //Log.d("WM","getBook_tcp: serverSocket established");
             //socket = serverSocket.accept();  // need "final" ??
-            socket = new Socket(ip, targetPort);
+            //socket = new Socket(ip, targetPort);
+            socket = new Socket(ip, desktopPort);
             Log.d("WM","getBook_tcp: got TCP socket; CONNECTED");
 
             // Create and send message to Desktop.
@@ -291,14 +290,13 @@ public class NewBookListenerService extends Service {
                 bookRequest.put("deviceAddress", getOurIpAddress());
                 bookRequest.put("deviceName", getOurDeviceName());
             } catch (JSONException e) {
-                // How could these fail?? But compiler demands we catch this.
                 Log.d("WM","getBook_tcp: JSONException-1, " + e);
                 e.printStackTrace();
             }
             byte[] outBuf = bookRequest.toString().getBytes("UTF-8");
             outStream.write(outBuf);
             Log.d("WM","getBook_tcp: JSON message sent to server, " + outBuf.length + " bytes:");
-            Log.d("WM","  " + outBuf);
+            Log.d("WM","  " + bookRequest.toString());
 
             // Receive a reply: stream > byte array > string. Create byte array,
             // larger than needed, then read incoming reply into it.
