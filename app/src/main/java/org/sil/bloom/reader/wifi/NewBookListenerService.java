@@ -79,24 +79,20 @@ public class NewBookListenerService extends Service {
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         multicastLock = wifi.createMulticastLock("lock");
         multicastLock.acquire();
-        Log.d("WM","listen: took multicastLock");  // WM, temporary
 
         try {
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
             //Log.e("UDP", "Waiting for UDP broadcast");
-            Log.d("WM","listen: waiting for packet");  // WM, temporary
+            Log.d("UDP", "Waiting for UDP broadcast");
             socket.receive(packet);
 
-            // WM, temporary - show a packet received and print its payload
-            Log.d("WM","listen: got packet from " + packet.getAddress().getHostAddress());
-            int packetLen = 144;
-            byte[] b = packet.getData();
-            String packetString = "";
-            for (int i=0; i<packetLen; i++) {
-                packetString += String.format("%c", b[i]);  // can also do %x (hex) then stringify in HxD
-            }
-            Log.d("WM","  advertisement = " + packetString);
-            // WM, end of temporary packet print
+            // WM, debug only: show a packet received and print its payload.
+            int pktLen = packet.getLength();
+            byte[] pktBytes = packet.getData();
+            Log.d("WM","listen: got UDP packet (" + pktLen + " bytes) from " + packet.getAddress().getHostAddress());
+            String pktString = new String(pktBytes);
+            Log.d("WM","   advertisement = " + pktString.substring(0, pktLen));
+            // WM, end of debug packet print
 
             if (gettingBook) {
                 Log.d("WM","listen: ignore advert, getting book");  // WM, temporary
@@ -110,7 +106,6 @@ public class NewBookListenerService extends Service {
             }
             String senderIP = packet.getAddress().getHostAddress();
             String message = new String(packet.getData()).trim();
-            //Log.d("WM","  data = " + ret);
             JSONObject msgJson = new JSONObject(message);
             String title = msgJson.getString("title");
             String newBookVersion = msgJson.getString("version");
@@ -174,9 +169,8 @@ public class NewBookListenerService extends Service {
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
                 addsToSkipBeforeRetry = 3;
-                //Log.d("WM","listen: calling getBook() with " + senderIP);  // WM, temporary
-                //getBook(senderIP, title);
                 Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
+                //getBook(senderIP, title);
                 getBook_tcp(senderIP, title);
                 Log.d("WM","listen: getBook_tcp() returned");  // WM, temporary
             }
@@ -189,7 +183,7 @@ public class NewBookListenerService extends Service {
         finally {
             socket.close();
             multicastLock.release();
-            Log.d("WM","listen: closed UDP socket, released multicastLock");  // WM, temporary
+            Log.d("WM","listen: closed UDP socket");  // WM, temporary
         }
     }
 
@@ -226,7 +220,6 @@ public class NewBookListenerService extends Service {
         }
     }
 
-    /*
     private void getBook(String sourceIP, String title) {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
         // This server will be sent the actual book data (and the final notification)
@@ -242,10 +235,8 @@ public class NewBookListenerService extends Service {
         Log.d("WM","  our IP = " + sendMessageTask.ourIpAddress + ", our device = " + sendMessageTask.ourDeviceName);  // WM, temporary
         sendMessageTask.execute();
     }
-    */
 
     private void getBook_tcp(String ip, String title) {
-        // WM, not sure what all this handler does
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
 
         // This server will be sent the actual book data (and the final notification). Start it now
@@ -253,64 +244,36 @@ public class NewBookListenerService extends Service {
         Log.d("WM","getBook_tcp: calling startSyncServer()");  // WM, temporary
         startSyncServer();
 
-        // port used must match '_portToListen' on Desktop side, in BloomReaderTCPListener
-        //int targetPort = 5915;
-        //int targetPort = 80;  // temporarily use standard HTTP port to debug connection issue
         Socket socket = null;
-        //ServerSocket serverSocket = null;
         OutputStream outStream = null;
         InputStream inStream = null;
-        // targetIP = null;
 
         try {
-            // Establish a connection.
-            //Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + targetPort);
-            Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + desktopPort);
-            //socket = new Socket(targetIP, targetPort);
-            //int targetIP = ipStringToInt(ip);
-            //serverSocket = new ServerSocket(targetIP, targetPort);
-            //Log.d("WM","getBook_tcp: serverSocket established");
-            //socket = serverSocket.accept();  // need "final" ??
-            //socket = new Socket(ip, targetPort);
+            // Establish a connection to Desktop.
+            Log.d("WM","getBook_tcp: creating TCP socket to Desktop at " + ip + ":" + desktopPort);  // WM, temporary
             socket = new Socket(ip, desktopPort);
-            Log.d("WM","getBook_tcp: got TCP socket; CONNECTED");
+            Log.d("WM","getBook_tcp: got TCP socket; CONNECTED");  // WM, temporary
 
             // Create and send message to Desktop.
             outStream = new DataOutputStream(socket.getOutputStream());
-            //String outString = "Test Java client on M72e";  // !!!!! REPLACE !!!!!
-            //byte[] outBuf = outString.getBytes();
-            //outStream.write(outBuf);
-            //Log.d("WM","getBook_tcp: Message sent to server, " + outBuf.length + " bytes:");
-            //Log.d("WM","  " + outString);
             JSONObject bookRequest = new JSONObject();
-            Log.d("WM","getBook_tcp: JSON reply object created, fill it out");
+            Log.d("WM","getBook_tcp: JSON reply object created, fill it out");  // WM, temporary
             try {
                 // names used here must match those in Bloom WiFiAdvertiser.Start(),
                 // in the event handler for _wifiListener.NewMessageReceived.
                 bookRequest.put("deviceAddress", getOurIpAddress());
                 bookRequest.put("deviceName", getOurDeviceName());
             } catch (JSONException e) {
-                Log.d("WM","getBook_tcp: JSONException-1, " + e);
+                Log.d("WM","getBook_tcp: JSONException-1, " + e);  // WM, temporary
                 e.printStackTrace();
             }
             byte[] outBuf = bookRequest.toString().getBytes("UTF-8");
             outStream.write(outBuf);
-            Log.d("WM","getBook_tcp: JSON message sent to server, " + outBuf.length + " bytes:");
-            Log.d("WM","  " + bookRequest.toString());
-
-            // Receive a reply: stream > byte array > string. Create byte array,
-            // larger than needed, then read incoming reply into it.
-            //InputStream inStream = socket.getInputStream();
-            //byte[] inBuf = new byte[1024];
-            //int inLen = inStream.read(inBuf);
-
-            // Create String to hold what was read, but no more.
-            //String inString = new String(inBuf, 0, inLen);
-            //Log.d("WM","getBook_tcp: Reply received from server, " + inLen + " bytes:");
-            //Log.d("WM","  " + inString);
+            Log.d("WM","getBook_tcp: JSON message sent to desktop, " + outBuf.length + " bytes:");  // WM, temporary
+            Log.d("WM","   " + bookRequest.toString());  // WM, temporary
         }
         catch (IOException i) {
-            Log.d("WM","getBook_tcp: IOException-1, " + i);
+            Log.d("WM","getBook_tcp: IOException-1, " + i);  // WM, temporary
             return;
         }
 
@@ -319,10 +282,10 @@ public class NewBookListenerService extends Service {
             inStream.close();
             outStream.close();
             socket.close();
-            Log.d("WM","getBook_tcp: connection closed");
+            Log.d("WM","getBook_tcp: connection closed");  // WM, temporary
         }
         catch (IOException i) {
-            Log.d("WM","getBook_tcp: IOException-2, " + i);
+            Log.d("WM","getBook_tcp: IOException-2, " + i);  // WM, temporary
         }
     }
 
@@ -374,11 +337,8 @@ public class NewBookListenerService extends Service {
                     if (inetAddress.isSiteLocalAddress()) {
                         return inetAddress.getHostAddress();
                     }
-
                 }
-
             }
-
         } catch (SocketException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -456,7 +416,6 @@ public class NewBookListenerService extends Service {
         shouldRestartSocketListen = true;
         Log.d("WM","onStartCommand: calling startListenForUDPBroadcast()");  // WM, temporary
         startListenForUDPBroadcast();
-        //Log.i("UDP", "Service started");
         return START_STICKY;
     }
 
@@ -490,20 +449,5 @@ public class NewBookListenerService extends Service {
             }
             return null;
         }
-    }
-
-    // Based on code from https://mkyong.com/java/java-convert-ip-address-to-decimal-number/
-    private int ipStringToInt(String ipAddress)
-    {
-        String[] ipAddressInArray = ipAddress.split("\\.");
-
-        int result = 0;
-        for (int i = 0; i < ipAddressInArray.length; i++) {
-
-            int power = 3 - i;
-            int ip = Integer.parseInt(ipAddressInArray[i]);
-            result += ip * Math.pow(256, power);
-        }
-        return result;
     }
 }
