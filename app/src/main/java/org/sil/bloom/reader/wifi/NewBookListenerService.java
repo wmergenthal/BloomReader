@@ -83,7 +83,7 @@ public class NewBookListenerService extends Service {
         try {
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
             //Log.e("UDP", "Waiting for UDP broadcast");
-            Log.d("UDP", "Waiting for UDP broadcast");
+            Log.d("UDP", "Waiting for UDP broadcast");  // WM, temporary
             socket.receive(packet);
 
             // WM, debug only: show a packet received and print its payload.
@@ -257,7 +257,6 @@ public class NewBookListenerService extends Service {
             // Create and send message to Desktop.
             outStream = new DataOutputStream(socket.getOutputStream());
             JSONObject bookRequest = new JSONObject();
-            Log.d("WM","getBook_tcp: JSON reply object created, fill it out");  // WM, temporary
             try {
                 // names used here must match those in Bloom WiFiAdvertiser.Start(),
                 // in the event handler for _wifiListener.NewMessageReceived.
