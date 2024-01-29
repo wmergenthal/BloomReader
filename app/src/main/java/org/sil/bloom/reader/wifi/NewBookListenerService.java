@@ -12,6 +12,7 @@ import androidx.annotation.Nullable;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.sil.bloom.reader.BaseActivity;
+import org.sil.bloom.reader.BloomReaderApplication;
 import org.sil.bloom.reader.IOUtilities;
 import org.sil.bloom.reader.MainActivity;
 import org.sil.bloom.reader.R;
@@ -24,7 +25,6 @@ import java.io.DataOutputStream;  // WM, added
 import java.io.OutputStream;      // WM, added
 import java.io.InputStream;       // WM, added
 import java.net.Socket;           // WM, added
-import java.net.ServerSocket;     // WM, added
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -169,9 +169,19 @@ public class NewBookListenerService extends Service {
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
                 addsToSkipBeforeRetry = 3;
-                Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
                 //getBook(senderIP, title);
-                getBook_tcp(senderIP, title);
+
+                Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
+                //getBook_tcp(senderIP, title);
+
+                // EXPERIMENT: we want to enable scanning a QR code for the book title
+                // and BloomDesktop's IP address. Simulate by having the user enter these
+                // items into a text box.
+                String possibleIpViaQrCode = BloomReaderApplication.getDesktopIpAddrFromQrCode();
+                if (possibleIpViaQrCode != null) {
+                    Log.d("WM","listen: QR, calling getBook_tcp() for \"" + title + "\" from " + possibleIpViaQrCode);  // WM, temporar
+                    getBook_tcp(possibleIpViaQrCode, title);
+                }
                 Log.d("WM","listen: getBook_tcp() returned");  // WM, temporary
             }
         } catch (JSONException e) {
@@ -277,15 +287,17 @@ public class NewBookListenerService extends Service {
         }
 
         // Close the connection.
+        Log.d("WM","getBook_tcp: closing TCP connection...");  // WM, temporary
         try {
             inStream.close();
             outStream.close();
             socket.close();
-            Log.d("WM","getBook_tcp: connection closed");  // WM, temporary
+            Log.d("WM","getBook_tcp: streams & socket closed");  // WM, temporary
         }
         catch (IOException i) {
             Log.d("WM","getBook_tcp: IOException-2, " + i);  // WM, temporary
         }
+        Log.d("WM","getBook_tcp: done, returning");  // WM, temporary
     }
 
     private void startSyncServer() {

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.widget.LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/wifiDialog"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#fff"
+    android:gravity="top" >
+
+    <TextView android:id="@+id/text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/text_box_for_manual_ip_addr"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:textColor="#000"
+        android:gravity="left"
+        android:layout_marginTop="20dp"
+        tools:layout_editor_absoluteY="0dp"
+        tools:layout_editor_absoluteX="8dp" />
+
+    <EditText
+        android:id="@+id/edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter text here..."
+        android:inputType="text" />
+
+    <Button
+        android:id="@+id/wifiOk"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:background="#fff"
+        android:textColor="@color/colorBloomRed"
+        android:text="@string/ok"
+        style="?android:attr/borderlessButtonStyle"/>
+
+</android.widget.LinearLayout>

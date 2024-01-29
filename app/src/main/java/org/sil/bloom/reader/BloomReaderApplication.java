@@ -45,6 +45,8 @@ public class BloomReaderApplication extends Application {
 
     public static boolean stillNeedToSetupAnalytics = false;
 
+    public static String desktopIpAddrViaQrCode = null;  // WM, added
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -347,5 +349,13 @@ public class BloomReaderApplication extends Application {
             // Oh well, we tried.
         }
         return null;
+    }
+
+    public static void setDesktopIpAddrFromQrCode(String in) {
+        desktopIpAddrViaQrCode = in;
+    }
+
+    public static String getDesktopIpAddrFromQrCode() {
+        return desktopIpAddrViaQrCode;
     }
 }
