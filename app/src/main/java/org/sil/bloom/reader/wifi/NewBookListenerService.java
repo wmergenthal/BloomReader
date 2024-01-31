@@ -16,7 +16,7 @@ import org.sil.bloom.reader.BloomReaderApplication;
 import org.sil.bloom.reader.IOUtilities;
 import org.sil.bloom.reader.MainActivity;
 import org.sil.bloom.reader.R;
-import org.sil.bloom.reader.models.BookCollection;
+//import org.sil.bloom.reader.models.BookCollection;
 
 import java.io.File;
 import java.io.IOException;
@@ -89,9 +89,9 @@ public class NewBookListenerService extends Service {
             // WM, debug only: show a packet received and print its payload.
             int pktLen = packet.getLength();
             byte[] pktBytes = packet.getData();
-            Log.d("WM","listen: got UDP packet (" + pktLen + " bytes) from " + packet.getAddress().getHostAddress());
+            Log.d("WM", "listen: got UDP packet (" + pktLen + " bytes) from " + packet.getAddress().getHostAddress());
             String pktString = new String(pktBytes);
-            Log.d("WM","   advertisement = " + pktString.substring(0, pktLen));
+            Log.d("WM", "   advertisement = " + pktString.substring(0, pktLen));
             // WM, end of debug packet print
 
             if (gettingBook) {
@@ -104,11 +104,36 @@ public class NewBookListenerService extends Service {
                 Log.d("WM","listen: ignore advert, decr'd addsToSkipBeforeRetry, now = " + addsToSkipBeforeRetry);  // WM, temporary
                 return;
             }
-            String senderIP = packet.getAddress().getHostAddress();
+
+            // Pull out needed data elements from the advertisement.
             String message = new String(packet.getData()).trim();
             JSONObject msgJson = new JSONObject(message);
-            String title = msgJson.getString("title");
+            String senderIP = new String(packet.getAddress().getHostAddress());
+            String title = new String(msgJson.getString("title"));
+            Log.d("WM","listen: got all data from UDP advert");
+
+            if (BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
+                // EXPERIMENT: QR code simulation
+                // Wait until we have user input for both IP address and book title.
+                while (BloomReaderApplication.gotUserInput == false) {
+                    Thread.sleep(500);
+                }
+                senderIP = new String(BloomReaderApplication.getDesktopIpAddrInQrCode());
+                Log.d("WM","listen: got manual entry input");
+
+                // Split up user input into separate strings and use them to overwrite what
+                // we got from the UDP advertisement.
+
+                //Log.d("WM","listen: overwrite with IP addr from manual entry: " + senderIP);
+                //Log.d("WM","listen: overwrite with book title from manual entry: " + title);
+            }
+
+            // This field in the JSON advert is a hash of I don't know what all. One component must
+            // be the date since the hash changes daily. Requiring a user to enter 44 characters
+            // of gibberish would be time consuming and (worse) error-prone, so we must reluctantly
+            // require the regular UDP advertisement to also be received in this experiment.
             String newBookVersion = msgJson.getString("version");
+
             String sender = "unknown";
             String protocolVersion = "0.0";
             try {
@@ -171,17 +196,20 @@ public class NewBookListenerService extends Service {
                 addsToSkipBeforeRetry = 3;
                 //getBook(senderIP, title);
 
+                // WM, EXPERIMENT: enable scanning a QR code for the book title and BloomDesktop's
+                // IP address. Simulate by having the user enter these items into text boxes.
+                //if (!BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
+                //    String possibleIpViaQrCode = BloomReaderApplication.getDesktopIpAddrFromQrCode();
+                //    if (possibleIpViaQrCode != null) {
+                //        Log.d("WM", "listen: QR, calling getBook_tcp() for \"" + title + "\" from " + possibleIpViaQrCode);  // WM, temporar
+                //        getBook_tcp(possibleIpViaQrCode, title);
+                //    }
+                //} else {
+                //    Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
+                //    getBook_tcp(senderIP, title);
+                //}
                 Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
-                //getBook_tcp(senderIP, title);
-
-                // EXPERIMENT: we want to enable scanning a QR code for the book title
-                // and BloomDesktop's IP address. Simulate by having the user enter these
-                // items into a text box.
-                String possibleIpViaQrCode = BloomReaderApplication.getDesktopIpAddrFromQrCode();
-                if (possibleIpViaQrCode != null) {
-                    Log.d("WM","listen: QR, calling getBook_tcp() for \"" + title + "\" from " + possibleIpViaQrCode);  // WM, temporar
-                    getBook_tcp(possibleIpViaQrCode, title);
-                }
+                getBook_tcp(senderIP, title);
                 Log.d("WM","listen: getBook_tcp() returned");  // WM, temporary
             }
         } catch (JSONException e) {
@@ -290,9 +318,11 @@ public class NewBookListenerService extends Service {
         Log.d("WM","getBook_tcp: closing TCP connection...");  // WM, temporary
         try {
             inStream.close();
+            Log.d("WM","getBook_tcp: inStream closed");  // WM, temporary
             outStream.close();
+            Log.d("WM","getBook_tcp: outStream closed");  // WM, temporary
             socket.close();
-            Log.d("WM","getBook_tcp: streams & socket closed");  // WM, temporary
+            Log.d("WM","getBook_tcp: socket closed");  // WM, temporary
         }
         catch (IOException i) {
             Log.d("WM","getBook_tcp: IOException-2, " + i);  // WM, temporary

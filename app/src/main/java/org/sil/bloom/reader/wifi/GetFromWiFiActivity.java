@@ -53,12 +53,12 @@ public class GetFromWiFiActivity extends BaseActivity {
             }
         });
 
-        // As commented in onNavigationItemSelected(), I am attempting to add a text box to the
-        // Wi-Fi book share screen for the user to enter the Desktop's IP address. This is just a
-        // proof of concept to see if it solves the problematic scenario of Reader being on a subnet
-        // different from Desktop and thus unable to hear Desktop's UDP broadcast advertisement.
+        // As commented in onNavigationItemSelected(), we add a text box to the Wi-Fi book share
+        // screen for the user to enter the Desktop IP address and the book title. This is a proof
+        // of concept to verify that these two data items can be provided by an alternative (QR code
+        // is planned) to the normal Desktop UDP broadcast advertisement.
 
-        // WM, BEGIN HACK
+        // WM, BEGIN EXPERIMENT
 
         // Create dialog box layout and the dialog itself.
         LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -80,6 +80,10 @@ public class GetFromWiFiActivity extends BaseActivity {
                 // Get what the user entered.
                 String inputText = userInput.getText().toString();
 
+                // User input should have Desktop's IP address, then CR, then book title.
+                // Break these out into separate strings.
+
+
                 // If the entered text has valid IPv4 address format, use it. Otherwise ignore it
                 // and show an error.
                 boolean isValidIPv4Addr = validateIPv4(inputText);
@@ -87,7 +91,7 @@ public class GetFromWiFiActivity extends BaseActivity {
                     Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                             "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
                     // Make this IP address available to the book-receive subsystem.
-                    BloomReaderApplication.setDesktopIpAddrFromQrCode(inputText);
+                    BloomReaderApplication.setDesktopIpAddrInQrCode(inputText);
                 } else {
                     Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                             "\nInvalid, try again", Toast.LENGTH_LONG).show();
@@ -98,7 +102,7 @@ public class GetFromWiFiActivity extends BaseActivity {
         // Dialog composition complete. Render it.
         builder.show();
 
-        // WM, END HACK
+        // WM, END EXPERIMENT
     }
 
     // Check whether the passed in string has a valid IPv4 format. If it does then return true,

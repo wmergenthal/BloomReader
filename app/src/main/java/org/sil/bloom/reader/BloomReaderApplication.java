@@ -45,7 +45,18 @@ public class BloomReaderApplication extends Application {
 
     public static boolean stillNeedToSetupAnalytics = false;
 
-    public static String desktopIpAddrViaQrCode = null;  // WM, added
+    public static String desktopIpAddrViaQrCode;  // WM, added
+    public static String desktopBookTitleViaQrCode;  // WM, added
+
+    // WM, experiment only -- set 'true' to test plumbing of getting book title and BloomDesktop
+    // IP address from a scanned QR code instead of the normal advertisement UDP packet:
+    //   - put up textboxes into which user is prompted to enter book title and Desktop IP address
+    // I wish we could ignore the entire advertisement, but existing logic uses a third field that
+    // would be too difficult to require a user to type: "version." This is a 44-character hash of
+    // the book that, unsurprisingly, looks like gibberish.
+    // To disable this test mode, set to 'false'.
+    public static boolean simulateQrCodeUsedInsteadOfAdvert = false;
+    public static boolean gotUserInput = false;
 
     @Override
     public void onCreate() {
@@ -351,11 +362,20 @@ public class BloomReaderApplication extends Application {
         return null;
     }
 
-    public static void setDesktopIpAddrFromQrCode(String in) {
-        desktopIpAddrViaQrCode = in;
-    }
-
-    public static String getDesktopIpAddrFromQrCode() {
+    public static String getDesktopIpAddrInQrCode() {
         return desktopIpAddrViaQrCode;
     }
+
+    public static void setDesktopIpAddrInQrCode(String in) {
+        desktopIpAddrViaQrCode = in;
+        gotUserInput = true;
+    }
+
+    //public static String getBookTitleInQrCode() {
+    //    return desktopBookTitleViaQrCode;
+    //}
+
+    //public static void setBookTitleInQrCode(String in) {
+    //    desktopBookTitleViaQrCode = in;
+    //}
 }
