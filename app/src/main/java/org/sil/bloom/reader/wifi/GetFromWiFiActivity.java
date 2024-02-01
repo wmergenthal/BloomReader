@@ -66,32 +66,37 @@ public class GetFromWiFiActivity extends BaseActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
         // Set the dialog box title and message.
-        builder.setTitle("Desktop's IP address entry");
-        builder.setMessage("Please enter the IP address (IPv4):");
+        builder.setTitle("QR code alternative - text entry");
+        builder.setMessage("Enter Desktop's IP address, then semicolon (;), then book title:");
 
         // Create EditText view for user to enter text, then make that the dialog box's view.
         EditText userInput = new EditText(this);
         builder.setView(userInput);
 
-        // Get user input and evaluate. Use it if has valid IPv4 format, otherwise ignore it.
+        // Get user input and evaluate. Use it if valid, otherwise ignore it.
         builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 // Get what the user entered.
                 String inputText = userInput.getText().toString();
 
-                // User input should have Desktop's IP address, then CR, then book title.
-                // Break these out into separate strings.
+                // User input should have Desktop's IP address, then ';', then book title.
+                // Parse these two things out, check them, and use them if they are ok to use.
+                String delims = ";";
+                String[] tokens = inputText.split(delims);
+                Log.d("WM","onCreate: ipAddr = " + tokens[0] + ", title = \"" + tokens[1] + "\"");
 
-
-                // If the entered text has valid IPv4 address format, use it. Otherwise ignore it
-                // and show an error.
-                boolean isValidIPv4Addr = validateIPv4(inputText);
+                // IP address: check for valid IPv4 format. If incorrect, ignore and show an error
+                // Book title: no check needed, even if it's null it won't cause trouble (VERIFY!!)
+                //boolean isValidIPv4Addr = validateIPv4(inputText);
+                boolean isValidIPv4Addr = validateIPv4(tokens[0]);
                 if (isValidIPv4Addr) {
                     Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                             "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
-                    // Make this IP address available to the book-receive subsystem.
-                    BloomReaderApplication.setDesktopIpAddrInQrCode(inputText);
+                    // Make this input available to the book-receive subsystem.
+                    //BloomReaderApplication.setDesktopIpAddrInQrCode(inputText);
+                    BloomReaderApplication.setDesktopIpAddrInQrCode(tokens[0]);
+                    BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
                 } else {
                     Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                             "\nInvalid, try again", Toast.LENGTH_LONG).show();

@@ -55,7 +55,7 @@ public class BloomReaderApplication extends Application {
     // would be too difficult to require a user to type: "version." This is a 44-character hash of
     // the book that, unsurprisingly, looks like gibberish.
     // To disable this test mode, set to 'false'.
-    public static boolean simulateQrCodeUsedInsteadOfAdvert = false;
+    public static boolean simulateQrCodeUsedInsteadOfAdvert = true;
     public static boolean gotUserInput = false;
 
     @Override
@@ -371,11 +371,11 @@ public class BloomReaderApplication extends Application {
         gotUserInput = true;
     }
 
-    //public static String getBookTitleInQrCode() {
-    //    return desktopBookTitleViaQrCode;
-    //}
+    public static String getBookTitleInQrCode() {
+        return desktopBookTitleViaQrCode;
+    }
 
-    //public static void setBookTitleInQrCode(String in) {
-    //    desktopBookTitleViaQrCode = in;
-    //}
+    public static void setBookTitleInQrCode(String in) {
+        desktopBookTitleViaQrCode = in;
+    }
 }

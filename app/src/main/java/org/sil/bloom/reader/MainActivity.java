@@ -1122,17 +1122,17 @@ public class MainActivity extends BaseActivity
         if (id == R.id.nav_get_wifi) {
                 Intent intent = new Intent(this, GetFromWiFiActivity.class);
             mGetBooksFromWiFi.launch(intent);
-        } else if (id == R.id.nav_get_wifi_enter_ip) {
+        //} else if (id == R.id.nav_get_wifi_manual_entry) {
             // WM: this else-if is a hack for manual entry of Editor/Desktop IP address. Purpose is
             // to confirm that when Editor and Reader are on different subnets, where book transfer
             // fails because the UDP broadcast advertisement never reaches Reader, transfer can
             // still happen if Reader is manually informed of Editor's IP address.
             //
-            // Trying to add a text box on the WiFi share screen, which I think (but am not sure) is
-            // done in GetFromWiFiActivity.java. If that works then the if-block above will also do
-            // it, and this added else-if-block will be unnecessary.
-            Intent intent = new Intent(this, GetFromWiFiActivity.class);
-            mGetBooksFromWiFi.launch(intent);
+            // Trying to add a text box on the WiFi share screen, which seems to be done in
+            // GetFromWiFiActivity.java. The if-block above also calls into that, so this added
+            // else-if-block is unnecessary.
+            //Intent intent = new Intent(this, GetFromWiFiActivity.class);
+            //mGetBooksFromWiFi.launch(intent);
         } else if (id == R.id.nav_get_usb) {
             GetFromBloomFolder(KindOfPermissionRequest.Usb);
         } else if (id == R.id.nav_share_app) {

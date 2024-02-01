@@ -121,11 +121,13 @@ public class NewBookListenerService extends Service {
                 senderIP = new String(BloomReaderApplication.getDesktopIpAddrInQrCode());
                 Log.d("WM","listen: got manual entry input");
 
-                // Split up user input into separate strings and use them to overwrite what
-                // we got from the UDP advertisement.
+                // User input was parsed out elsewhere into separate strings. Use them now to
+                // overwrite what we got from the UDP advertisement.
+                senderIP = BloomReaderApplication.getDesktopIpAddrInQrCode();
+                title = BloomReaderApplication.getBookTitleInQrCode();
 
-                //Log.d("WM","listen: overwrite with IP addr from manual entry: " + senderIP);
-                //Log.d("WM","listen: overwrite with book title from manual entry: " + title);
+                Log.d("WM","listen: overwrite with IP addr from manual entry: " + senderIP);
+                Log.d("WM","listen: overwrite with book title from manual entry: " + title);
             }
 
             // This field in the JSON advert is a hash of I don't know what all. One component must
@@ -133,6 +135,13 @@ public class NewBookListenerService extends Service {
             // of gibberish would be time consuming and (worse) error-prone, so we must reluctantly
             // require the regular UDP advertisement to also be received in this experiment.
             String newBookVersion = msgJson.getString("version");
+
+            // ****************
+            // TODO: save the version obtained when the UDP advert was received, and put it out in
+            // the log -- apply it later when the scenario has changed so that we ARE on separate
+            // subnets, when UDP will no longer work.
+            // This would help demonstrate the viability of QR code approach across subnets.
+            // ****************
 
             String sender = "unknown";
             String protocolVersion = "0.0";
@@ -195,19 +204,6 @@ public class NewBookListenerService extends Service {
                 // we don't start getting it in a reasonable time.
                 addsToSkipBeforeRetry = 3;
                 //getBook(senderIP, title);
-
-                // WM, EXPERIMENT: enable scanning a QR code for the book title and BloomDesktop's
-                // IP address. Simulate by having the user enter these items into text boxes.
-                //if (!BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
-                //    String possibleIpViaQrCode = BloomReaderApplication.getDesktopIpAddrFromQrCode();
-                //    if (possibleIpViaQrCode != null) {
-                //        Log.d("WM", "listen: QR, calling getBook_tcp() for \"" + title + "\" from " + possibleIpViaQrCode);  // WM, temporar
-                //        getBook_tcp(possibleIpViaQrCode, title);
-                //    }
-                //} else {
-                //    Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
-                //    getBook_tcp(senderIP, title);
-                //}
                 Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);  // WM, temporary
                 getBook_tcp(senderIP, title);
                 Log.d("WM","listen: getBook_tcp() returned");  // WM, temporary

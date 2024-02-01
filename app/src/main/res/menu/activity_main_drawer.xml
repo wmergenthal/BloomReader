@@ -8,9 +8,9 @@
             android:icon="@drawable/ic_wifi_black_24dp"
             android:title="@string/receive_books_over_wifi" />
         <item
-            android:id="@+id/nav_get_wifi_enter_ip"
+            android:id="@+id/nav_get_wifi_manual_entry"
             android:icon="@drawable/ic_wifi_black_24dp"
-            android:title="@string/receive_books_over_wifi_enter_ip" />
+            android:title="@string/receive_books_over_wifi_manual_entry" />
         <item
             android:id="@+id/nav_get_usb"
             android:icon="@drawable/ic_baseline_usb_24"
