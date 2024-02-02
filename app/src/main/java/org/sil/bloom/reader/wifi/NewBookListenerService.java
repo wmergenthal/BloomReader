@@ -105,12 +105,23 @@ public class NewBookListenerService extends Service {
                 return;
             }
 
-            // Pull out needed data elements from the advertisement.
+            // Pull out from the advertisement payload: (a) book title, (b) book version
+            // NOTE: (b) in the JSON advert is a hash of I don't know what all. The current date
+            // appears to enter into it since the hash changes daily. Requiring a user to enter
+            // 44 characters of gibberish would be time consuming and (worse) error-prone, so the
+            // user will have to copy it from the Android Studio log and paste it into a textbox
+            // on Reader. This textbox is displayed at the start of WiFi-listen when the
+            // advertisement-alternative is in effect (that is, when
+            // 'BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert' is set 'true').
             String message = new String(packet.getData()).trim();
             JSONObject msgJson = new JSONObject(message);
-            String senderIP = new String(packet.getAddress().getHostAddress());
             String title = new String(msgJson.getString("title"));
-            Log.d("WM","listen: got all data from UDP advert");
+            String newBookVersion = new String(msgJson.getString("version"));
+
+            // Pull out from the advertisement packet header: Desktop IP address
+            String senderIP = new String(packet.getAddress().getHostAddress());
+
+            Log.d("WM","listen: got data from UDP advert");  // WM, temporary
 
             if (BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
                 // EXPERIMENT: QR code simulation
@@ -118,30 +129,17 @@ public class NewBookListenerService extends Service {
                 while (BloomReaderApplication.gotUserInput == false) {
                     Thread.sleep(500);
                 }
-                senderIP = new String(BloomReaderApplication.getDesktopIpAddrInQrCode());
-                Log.d("WM","listen: got manual entry input");
 
-                // User input was parsed out elsewhere into separate strings. Use them now to
+                // User input was parsed out elsewhere into separate strings. Use those now to
                 // overwrite what we got from the UDP advertisement.
                 senderIP = BloomReaderApplication.getDesktopIpAddrInQrCode();
                 title = BloomReaderApplication.getBookTitleInQrCode();
+                newBookVersion = BloomReaderApplication.getBookVersionInQrCode();
 
                 Log.d("WM","listen: overwrite with IP addr from manual entry: " + senderIP);
                 Log.d("WM","listen: overwrite with book title from manual entry: " + title);
+                Log.d("WM","listen: overwrite with book version from manual entry: " + newBookVersion);
             }
-
-            // This field in the JSON advert is a hash of I don't know what all. One component must
-            // be the date since the hash changes daily. Requiring a user to enter 44 characters
-            // of gibberish would be time consuming and (worse) error-prone, so we must reluctantly
-            // require the regular UDP advertisement to also be received in this experiment.
-            String newBookVersion = msgJson.getString("version");
-
-            // ****************
-            // TODO: save the version obtained when the UDP advert was received, and put it out in
-            // the log -- apply it later when the scenario has changed so that we ARE on separate
-            // subnets, when UDP will no longer work.
-            // This would help demonstrate the viability of QR code approach across subnets.
-            // ****************
 
             String sender = "unknown";
             String protocolVersion = "0.0";

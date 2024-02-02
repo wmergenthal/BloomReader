@@ -53,61 +53,78 @@ public class GetFromWiFiActivity extends BaseActivity {
             }
         });
 
-        // As commented in onNavigationItemSelected(), we add a text box to the Wi-Fi book share
-        // screen for the user to enter the Desktop IP address and the book title. This is a proof
-        // of concept to verify that these two data items can be provided by an alternative (QR code
-        // is planned) to the normal Desktop UDP broadcast advertisement.
+        if (BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
+            // WM, EXPERIMENT
+            // As commented in onNavigationItemSelected(), we add a text box to the Wi-Fi book share
+            // screen for the user to enter data normally provided by Desktop's UDP advertisement:
+            //    Desktop IP address, book title, book version
+            // This is a proof of concept to verify that these data items *can* be provided by an
+            // alternative such as QR code.
 
-        // WM, BEGIN EXPERIMENT
+            // Create dialog box layout and the dialog itself.
+            LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            View dialogView = inflater.inflate(R.layout.activity_enter_desktop_ip_address, null);
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
-        // Create dialog box layout and the dialog itself.
-        LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        View dialogView = inflater.inflate(R.layout.activity_enter_desktop_ip_address, null);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            // Set the dialog box title and message.
+            builder.setTitle("QR code alternative - text entry");
+            builder.setMessage("Enter as follows: Desktop IP address, semicolon, book title, semicolon, book version (from Android Studio log):");
 
-        // Set the dialog box title and message.
-        builder.setTitle("QR code alternative - text entry");
-        builder.setMessage("Enter Desktop's IP address, then semicolon (;), then book title:");
+            // Create EditText view for user to enter text, then make that the dialog box's view.
+            EditText userInput = new EditText(this);
+            builder.setView(userInput);
 
-        // Create EditText view for user to enter text, then make that the dialog box's view.
-        EditText userInput = new EditText(this);
-        builder.setView(userInput);
+            // Get user input and evaluate. Use it if valid, otherwise ignore it.
+            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    // Get what the user entered.
+                    String inputText = userInput.getText().toString();
 
-        // Get user input and evaluate. Use it if valid, otherwise ignore it.
-        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                // Get what the user entered.
-                String inputText = userInput.getText().toString();
+                    // User input should contain 3 elements delimited with semicolons, like this:
+                    // Desktop's IP address, then ';', then book title, then ';', then book version
+                    //   - Parse these things out
+                    //   - Verify the number of elements is as expected; if not then put up an error
+                    //     message instructing the user to try again
+                    //   - Sanity check the elements; ignore them if something is wrong
+                    String delims = ";";
+                    String[] tokens = inputText.split(delims);
+                    int numElements = tokens.length;
+                    if (numElements != 3) {
+                        Toast.makeText(getApplicationContext(), "You provided " + numElements +
+                                " elements, 3 are required, try again", Toast.LENGTH_LONG).show();
+                        Log.d("WM", "onCreate: got " + numElements + ", 3 are required, bail");
+                        builder.show();
+                        return;
+                    }
 
-                // User input should have Desktop's IP address, then ';', then book title.
-                // Parse these two things out, check them, and use them if they are ok to use.
-                String delims = ";";
-                String[] tokens = inputText.split(delims);
-                Log.d("WM","onCreate: ipAddr = " + tokens[0] + ", title = \"" + tokens[1] + "\"");
+                    Log.d("WM", "onCreate: ipAddr  = " + tokens[0]);
+                    Log.d("WM", "          title   = \"" + tokens[1] + "\"");
+                    Log.d("WM", "          version = \"" + tokens[2] + "\"");
 
-                // IP address: check for valid IPv4 format. If incorrect, ignore and show an error
-                // Book title: no check needed, even if it's null it won't cause trouble (VERIFY!!)
-                //boolean isValidIPv4Addr = validateIPv4(inputText);
-                boolean isValidIPv4Addr = validateIPv4(tokens[0]);
-                if (isValidIPv4Addr) {
-                    Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                            "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
-                    // Make this input available to the book-receive subsystem.
-                    //BloomReaderApplication.setDesktopIpAddrInQrCode(inputText);
-                    BloomReaderApplication.setDesktopIpAddrInQrCode(tokens[0]);
-                    BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
-                } else {
-                    Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                            "\nInvalid, try again", Toast.LENGTH_LONG).show();
+                    // IP address: check for valid IPv4 format; if incorrect, ignore and show an error
+                    // Book title: no check needed, downstream logic handles if null (VERIFY!!)
+                    // Book version: no check needed, downstream logic handles if null (VERIFY!!)
+                    boolean isValidIPv4Addr = validateIPv4(tokens[0]);
+                    if (isValidIPv4Addr) {
+                        Toast.makeText(getApplicationContext(), "You entered: " + inputText +
+                                "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
+                        // Make this input available to the book-receive subsystem.
+                        BloomReaderApplication.setDesktopIpAddrInQrCode(tokens[0]);
+                        BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
+                        BloomReaderApplication.setBookVersionInQrCode(tokens[2]);
+                    } else {
+                        Toast.makeText(getApplicationContext(), "You entered: " + inputText +
+                                "\nInvalid, try again", Toast.LENGTH_LONG).show();
+                    }
                 }
-            }
-        });
+            });
 
-        // Dialog composition complete. Render it.
-        builder.show();
+            // Dialog composition complete. Render it.
+            builder.show();
 
-        // WM, END EXPERIMENT
+            // WM, END EXPERIMENT
+        }
     }
 
     // Check whether the passed in string has a valid IPv4 format. If it does then return true,

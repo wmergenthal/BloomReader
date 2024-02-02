@@ -45,15 +45,13 @@ public class BloomReaderApplication extends Application {
 
     public static boolean stillNeedToSetupAnalytics = false;
 
-    public static String desktopIpAddrViaQrCode;  // WM, added
-    public static String desktopBookTitleViaQrCode;  // WM, added
+    public static String desktopIpAddrViaQrCode;
+    public static String desktopBookTitleViaQrCode;
+    public static String desktopBookVersionViaQrCode;
 
-    // WM, experiment only -- set 'true' to test plumbing of getting book title and BloomDesktop
-    // IP address from a scanned QR code instead of the normal advertisement UDP packet:
-    //   - put up textboxes into which user is prompted to enter book title and Desktop IP address
-    // I wish we could ignore the entire advertisement, but existing logic uses a third field that
-    // would be too difficult to require a user to type: "version." This is a 44-character hash of
-    // the book that, unsurprisingly, looks like gibberish.
+    // WM, experiment only -- set 'true' to test plumbing of getting book title, book version, and
+    // BloomDesktop IP address from a QR code instead of the normal advertisement UDP packet:
+    //   - put up a textbox into which user is prompted to enter these elements
     // To disable this test mode, set to 'false'.
     public static boolean simulateQrCodeUsedInsteadOfAdvert = true;
     public static boolean gotUserInput = false;
@@ -362,20 +360,28 @@ public class BloomReaderApplication extends Application {
         return null;
     }
 
+    // Desktop's IP address from QR code in a string, getter and setter
     public static String getDesktopIpAddrInQrCode() {
         return desktopIpAddrViaQrCode;
     }
-
     public static void setDesktopIpAddrInQrCode(String in) {
         desktopIpAddrViaQrCode = in;
         gotUserInput = true;
     }
 
+    // Book title from QR code in a string, getter and setter
     public static String getBookTitleInQrCode() {
         return desktopBookTitleViaQrCode;
     }
-
     public static void setBookTitleInQrCode(String in) {
         desktopBookTitleViaQrCode = in;
+    }
+
+    // Book version from QR code in a string, getter and setter
+    public static String getBookVersionInQrCode() {
+        return desktopBookVersionViaQrCode;
+    }
+    public static void setBookVersionInQrCode(String in) {
+        desktopBookVersionViaQrCode = in;
     }
 }
