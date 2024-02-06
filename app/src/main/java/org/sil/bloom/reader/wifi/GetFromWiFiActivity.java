@@ -92,23 +92,14 @@ public class GetFromWiFiActivity extends BaseActivity {
                     int numElements = tokens.length;
                     if (numElements != 3) {
                         Toast.makeText(getApplicationContext(), "You provided " + numElements +
-                                " elements, 3 are required, try again", Toast.LENGTH_LONG).show();
+                                " elements, 3 are required. Try again.", Toast.LENGTH_LONG).show();
                         Log.d("WM", "onClick: got " + numElements + " but 3 are required, bail");
-                        // Avoid a crash: give display logic something to show.
-                        //BloomReaderApplication.setDesktopIpAddrInQrCode(" ");
-                        //BloomReaderApplication.setBookTitleInQrCode(" ");
-                        //BloomReaderApplication.setBookVersionInQrCode(" ");
-
-                        //Log.d("WM", "onClick: doing builder.show() for bad input");
-                        //builder.show();
-                        //Log.d("WM", "onClick: did builder.show(), returning");
-                        Log.d("WM", "onClick: bad input, returning");
                         return;
                     }
 
                     Log.d("WM", "onClick: ipAddr  = " + tokens[0]);
-                    Log.d("WM", "         title   = \"" + tokens[1] + "\"");
-                    Log.d("WM", "         version = \"" + tokens[2] + "\"");
+                    Log.d("WM", "         title   = " + tokens[1]);
+                    Log.d("WM", "         version = " + tokens[2]);
 
                     // IP address: check for valid IPv4 format; if incorrect, ignore and show an error
                     // Book title: no check needed, downstream logic handles if null (VERIFY!!)
@@ -117,13 +108,13 @@ public class GetFromWiFiActivity extends BaseActivity {
                     if (isValidIPv4Addr) {
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                                 "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
-                        // Make this input available to the book-receive subsystem.
+                        // Make user input available to the book-receive subsystem.
                         BloomReaderApplication.setDesktopIpAddrInQrCode(tokens[0]);
                         BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
                         BloomReaderApplication.setBookVersionInQrCode(tokens[2]);
                     } else {
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                                "\nInvalid, try again", Toast.LENGTH_LONG).show();
+                                "\nIP address is invalid. Try again.", Toast.LENGTH_LONG).show();
                     }
                 }
             });
