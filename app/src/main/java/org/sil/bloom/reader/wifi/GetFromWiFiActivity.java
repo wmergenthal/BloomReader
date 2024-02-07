@@ -53,7 +53,7 @@ public class GetFromWiFiActivity extends BaseActivity {
             }
         });
 
-        if (BloomReaderApplication.simulateQrCodeUsedInsteadOfAdvert) {
+        if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
             // WM, EXPERIMENT
             // As commented in onNavigationItemSelected(), we add a text box to the Wi-Fi book share
             // screen for the user to enter data normally provided by Desktop's UDP advertisement:
@@ -80,6 +80,7 @@ public class GetFromWiFiActivity extends BaseActivity {
                 public void onClick(DialogInterface dialog, int which) {
                     // Get what the user entered.
                     String inputText = userInput.getText().toString();
+                    BloomReaderApplication.setQrInputReceived(true);
 
                     // User input should contain 3 elements delimited with semicolons, like this:
                     // Desktop's IP address, then ';', then book title, then ';', then book version
@@ -91,9 +92,11 @@ public class GetFromWiFiActivity extends BaseActivity {
                     String[] tokens = inputText.split(delims);
                     int numElements = tokens.length;
                     if (numElements != 3) {
+                        BloomReaderApplication.setQrInputIsValid(false);
                         Toast.makeText(getApplicationContext(), "You provided " + numElements +
                                 " elements, 3 are required. Try again.", Toast.LENGTH_LONG).show();
                         Log.d("WM", "onClick: got " + numElements + " but 3 are required, bail");
+                        Log.d("WM", "onClick: QR data valid == " + BloomReaderApplication.getQrInputIsValid());
                         return;
                     }
 
@@ -106,6 +109,7 @@ public class GetFromWiFiActivity extends BaseActivity {
                     // Book version: no check needed, downstream logic handles if null (VERIFY!!)
                     boolean isValidIPv4Addr = validateIPv4(tokens[0]);
                     if (isValidIPv4Addr) {
+                        BloomReaderApplication.setQrInputIsValid(true);
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                                 "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
                         // Make user input available to the book-receive subsystem.
@@ -113,6 +117,7 @@ public class GetFromWiFiActivity extends BaseActivity {
                         BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
                         BloomReaderApplication.setBookVersionInQrCode(tokens[2]);
                     } else {
+                        BloomReaderApplication.setQrInputIsValid(false);
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                                 "\nIP address is invalid. Try again.", Toast.LENGTH_LONG).show();
                     }
