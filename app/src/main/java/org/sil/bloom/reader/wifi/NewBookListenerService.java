@@ -212,13 +212,6 @@ public class NewBookListenerService extends Service {
                 }
                 Log.d("WM","listen: already have book");
             } else {
-                // One more thing before requesting the book: if we learned of it via QR code (real
-                // or simulated) instead of normal advertisement, ensure the input was validated ok.
-                //if (BloomReaderApplication.gotQrInput == false) {
-                //    Log.d("WM","listen: problem with user-provided data, release Lock, returning");
-                //    multicastLock.release();
-                //    return;
-                //}
                 if (bookExists) {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
                 }
@@ -230,7 +223,6 @@ public class NewBookListenerService extends Service {
                 addsToSkipBeforeRetry = 3;
                 //getBook(senderIP, title);
                 Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);
-                //Log.d("WM", "listen: outset, verify QR-data-valid is  " + BloomReaderApplication.gotQrInput);
                 getBook_tcp(senderIP, title);
                 Log.d("WM","listen: getBook_tcp() returned");
             }
@@ -306,7 +298,6 @@ public class NewBookListenerService extends Service {
 
         Socket socket = null;
         OutputStream outStream = null;
-        //InputStream inStream = null;
 
         try {
             // Establish a connection to Desktop.
@@ -339,12 +330,8 @@ public class NewBookListenerService extends Service {
         // Close the connection.
         Log.d("WM","getBook_tcp: closing TCP connection...");
         try {
-            //inStream.close();
-            //Log.d("WM","getBook_tcp: inStream closed");
             outStream.close();
-            Log.d("WM","getBook_tcp: outStream closed");
             socket.close();
-            Log.d("WM","getBook_tcp: socket closed");
         }
         catch (IOException i) {
             Log.d("WM","getBook_tcp: IOException-2, " + i);
