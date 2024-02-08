@@ -59,8 +59,7 @@ public class NewBookListenerService extends Service {
     int addsToSkipBeforeRetry;
     boolean reportedVersionProblem = false;
     private Set<String> _announcedBooks = new HashSet<String>();
-    //WifiManager.MulticastLock multicastLock;
-    WifiManager.MulticastLock multicastLock = null;
+    WifiManager.MulticastLock multicastLock;
 
     @Nullable
     @Override
@@ -75,15 +74,12 @@ public class NewBookListenerService extends Service {
             socket.setBroadcast(true);
         }
 
-        // This seems to have become necessary for receiving a packet around Android 8.
+        // MulticastLock seems to have become necessary for receiving a broadcast packet around Android 8.
         WifiManager wifi;
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        if (multicastLock == null) {
-            multicastLock = wifi.createMulticastLock("lock");
-            Log.d("WM", "listen: created Lock");
-        }
+        multicastLock = wifi.createMulticastLock("lock");
         multicastLock.acquire();
-        Log.d("WM", "listen: acquired Lock");
+        Log.d("WM", "listen: acquired multicastLock");
 
         // Even if we're not using QR data clearing this flag won't affect anything, so just do it.
         BloomReaderApplication.setQrInputReceived(false);
@@ -103,15 +99,15 @@ public class NewBookListenerService extends Service {
             // WM, end of debug packet print
 
             if (gettingBook) {
-                Log.d("WM","listen: ignore advert (getting book), release Lock, returning");
-                multicastLock.release();
+                Log.d("WM","listen: ignore advert (getting book), release multicastLock, returning");
+                multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return; // ignore new advertisements while downloading. Will receive again later.
             }
             if (addsToSkipBeforeRetry > 0) {
                 // We ignore a few adds after requesting a book before we (hopefully) start receiving.
                 addsToSkipBeforeRetry--;
-                Log.d("WM","listen: ignore advert (decr'd skips, now = " + addsToSkipBeforeRetry + "), release Lock, returning");
-                multicastLock.release();
+                Log.d("WM","listen: ignore advert (decr'd skips, now = " + addsToSkipBeforeRetry + "), release multicastLock, returning");
+                multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return;
             }
 
@@ -154,8 +150,8 @@ public class NewBookListenerService extends Service {
                     Log.d("WM", "listen: overwrite book title from manual entry: " + title);
                     Log.d("WM", "listen: overwrite book version from manual entry: " + newBookVersion);
                 } else {
-                    Log.d("WM", "listen: QR data invalid, ignore it, release Lock and return");
-                    multicastLock.release();
+                    Log.d("WM", "listen: QR data invalid, ignore it, release multicastLock and return");
+                    multicastLock.release();  // perhaps not strictly necessary but saves some battery
                     return;
                 }
             }
@@ -175,8 +171,8 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of Bloom editor to exchange data with this BloomReader\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","listen:  version < 2 (" + version + "), release Lock, returning");
-                multicastLock.release();
+                Log.d("WM","listen:  version < 2 (" + version + "), release multicastLock, returning");
+                multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return;
             } else if (version >= 3.0f) {
                 // Desktop currently uses 2.0 exactly; the plan is that non-breaking changes
@@ -185,8 +181,8 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of BloomReader to exchange data with this sender\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","listen: version >= 3 (" + version + "), release Lock, returning");
-                multicastLock.release();
+                Log.d("WM","listen: version >= 3 (" + version + "), release multicastLock, returning");
+                multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return;
             }
             File bookFile = IOUtilities.getBookFileIfExists(title);
@@ -235,7 +231,7 @@ public class NewBookListenerService extends Service {
         finally {
             socket.close();
             multicastLock.release();
-            Log.d("WM","listen: released Lock, closed UDP socket");
+            Log.d("WM","listen: released multicastLock, closed UDP socket");
         }
     }
 

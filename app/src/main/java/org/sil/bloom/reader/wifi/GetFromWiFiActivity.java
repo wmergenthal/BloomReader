@@ -104,12 +104,12 @@ public class GetFromWiFiActivity extends BaseActivity {
                     Log.d("WM", "         title   = " + tokens[1]);
                     Log.d("WM", "         version = " + tokens[2]);
 
-                    // IP address: check for valid IPv4 format; if incorrect, ignore and show an error
-                    // Book title: no check needed, downstream logic handles if null (VERIFY!!)
-                    // Book version: no check needed, downstream logic handles if null (VERIFY!!)
-                    boolean isValidIPv4Addr = validateIPv4(tokens[0]);
-                    if (isValidIPv4Addr) {
+                    // IP address: check for valid IPv4 format
+                    // Book title: check that it is not empty
+                    // Book version: check that it is not empty
+                    if (validateIPv4(tokens[0]) && (tokens[1].length() > 0) && (tokens[2].length() > 0)) {
                         BloomReaderApplication.setQrInputIsValid(true);
+                        Log.d("WM", "onClick: QR input is okay");
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
                                 "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
                         // Make user input available to the book-receive subsystem.
@@ -118,8 +118,9 @@ public class GetFromWiFiActivity extends BaseActivity {
                         BloomReaderApplication.setBookVersionInQrCode(tokens[2]);
                     } else {
                         BloomReaderApplication.setQrInputIsValid(false);
+                        Log.d("WM", "onClick: QR input is NOT okay");
                         Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                                "\nIP address is invalid. Try again.", Toast.LENGTH_LONG).show();
+                                "\nThis is not entirely correct. Try again.", Toast.LENGTH_LONG).show();
                     }
                 }
             });
