@@ -112,13 +112,13 @@ public class NewBookListenerService extends Service {
             }
 
             // Pull out from the advertisement *payload*: (a) book title, (b) book version
-            // NOTE: (b) in the JSON advert is a hash of I don't know what all. The current date
-            // appears to enter into it since the hash changes daily. Requiring a user to enter
-            // 44 characters of gibberish would be time consuming and (worse) error-prone, so the
-            // user should copy it from the Android Studio log and paste it into the Reader textbox.
-            // This textbox is displayed for WiFi-listen when the advertisement-alternative is in
-            // effect -- i.e., when 'BloomReaderApplication.qrCodeUsedInsteadOfAdvert' is set true.
-            // See GetFromWiFiActivity::onCreate().
+            // NOTE: (b) in the JSON advert is a hash of I don't know what all. Requiring a user to
+            // enter 44 characters of gibberish would be time consuming and (worse) error-prone, but
+            // I don't know where in the tablet the current hash can be displayed. If there is such
+            // a spot the user can copy/paste from there into the Reader popup textbox; otherwise,
+            // type carefully! The textbox is displayed for WiFi-listen when the advertisement
+            // alternative is in effect -- i.e., 'BloomReaderApplication.qrCodeUsedInsteadOfAdvert'
+            // is set true. See GetFromWiFiActivity::onCreate().
             String message = new String(packet.getData()).trim();
             JSONObject msgJson = new JSONObject(message);
             String title = new String(msgJson.getString("title"));
@@ -127,8 +127,8 @@ public class NewBookListenerService extends Service {
             // Pull out from the advertisement packet *header*: Desktop IP address
             String senderIP = new String(packet.getAddress().getHostAddress());
 
-            Log.d("WM","listen: got data from UDP advert");
-            Log.d("WM", "listen: outset, verify QR-data-valid is false: " + BloomReaderApplication.getQrInputIsValid());
+            //Log.d("WM","listen: got data from UDP advert");
+            //Log.d("WM", "listen: outset, verify QR-data-valid is false: " + BloomReaderApplication.getQrInputIsValid());
 
             if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
                 // EXPERIMENT: QR code simulation
@@ -185,7 +185,11 @@ public class NewBookListenerService extends Service {
                 multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return;
             }
+            //Log.d("WM","listen: getting bookFile for title \"" + title + "\"");
             File bookFile = IOUtilities.getBookFileIfExists(title);
+            Log.d("WM","listen: bookFile=" + bookFile);
+            Log.d("WM","listen: title=" + title + ", newBookVersion=" + newBookVersion);
+
             boolean bookExists = bookFile != null;
             // If the book doesn't exist it can't be up to date.
             if (bookExists && IsBookUpToDate(bookFile, title, newBookVersion)) {
@@ -404,11 +408,14 @@ public class NewBookListenerService extends Service {
     boolean IsBookUpToDate(File bookFile, String title, String newBookVersion) {
         // "version.txt" must match the name given in Bloom Desktop BookCompressor.CompressDirectory()
         byte[] oldShaBytes = IOUtilities.ExtractZipEntry(bookFile, "version.txt");
-        if (oldShaBytes == null)
+        if (oldShaBytes == null) {
+            //Log.d("WM","IsBookUpToDate: oldShaBytes = null, bookFile probably is too, bail");  // WM, temporary
             return false;
+        }
         String oldSha = "";
         try {
             oldSha = new String(oldShaBytes, "UTF-8");
+            Log.d("WM","IsBookUpToDate: oldSha = " + oldSha);  // WM, temporary
             // Some versions of Bloom accidentally put out a version.txt starting with a BOM
             if (oldSha.startsWith("\uFEFF")) {
                 oldSha = oldSha.substring(1);
@@ -421,6 +428,7 @@ public class NewBookListenerService extends Service {
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
+        Log.d("WM","IsBookUpToDate: returning [oldSha.equals(newBookVersion)] = " + oldSha.equals(newBookVersion));  // WM, temporary
         return oldSha.equals(newBookVersion); // not ==, they are different objects.
     }
 
