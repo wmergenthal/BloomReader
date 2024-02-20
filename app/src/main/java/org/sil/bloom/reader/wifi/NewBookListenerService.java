@@ -213,18 +213,21 @@ public class NewBookListenerService extends Service {
                 Log.d("WM","listen: already have book");
             } else {
                 if (bookExists) {
+                    Log.d("WM","listen: requesting updated book");
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
                 }
                 else {
+                    Log.d("WM","listen: requesting new book");
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), title, sender) + "\n");
                 }
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
+                Log.d("WM","listen: our IP address is " + getOurIpAddress());
                 addsToSkipBeforeRetry = 3;
+                //Log.d("WM","listen: calling getBook() for \"" + title + "\" from " + senderIP);
                 //getBook(senderIP, title);
                 Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);
                 getBook_tcp(senderIP, title);
-                Log.d("WM","listen: getBook_tcp() returned");
             }
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
