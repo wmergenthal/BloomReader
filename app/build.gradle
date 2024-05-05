@@ -34,7 +34,13 @@ android {
     defaultConfig {
         applicationId "org.sil.bloom.reader"
         minSdkVersion 21
+        //minSdkVersion 19     -- WM, expmt: BLU STUDIO X8 HD needs '19'
         targetSdkVersion 33
+
+        // WM, expmt: v21 and higher has multidex support built-in (StackOverflow 26609734).
+        // Bloom Reader apparently needs multidex so with v19 we must explicitly enable it.
+        //multiDexEnabled true
+
         versionCode versionMajor * 100000 + versionMinor * 1000 + versionRelease.toInteger()
         versionName "${versionMajor}.${versionMinor}.${versionRelease}"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
