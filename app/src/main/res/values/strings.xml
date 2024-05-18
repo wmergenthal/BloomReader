@@ -18,6 +18,7 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
     <string name="get_books_local_wifi">Receive books from Bloom on a computer, over Wifi</string>
+    <string name="text_box_for_manual_entry">Enter the Desktop IP address and Book title</string>
     <!-- %1$s is a book title -->
     <string name="already_have_version">Found \"%1$s\", already have this version.</string>
     <!-- %1$s is a book title; %2$s is a description of the sending network -->
@@ -69,6 +70,7 @@
     <string name="or">or</string>
     <!-- Prior to BR 2.3, this message was "Receive books from computer"-->
     <string name="receive_books_over_wifi">Receive books via WiFi</string>
+    <string name="receive_books_over_wifi_manual_entry">Receive books via WiFi - manual entry</string>
     <!-- Used both as a menu option and as the title of the resulting dialog-->
     <string name="receive_books_over_usb">Receive books via USB</string>
     <string name="ready_to_receive_usb">Bloom Reader is ready to receive books via USB cable from the Bloom Editor program</string>

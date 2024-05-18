@@ -45,6 +45,25 @@ public class BloomReaderApplication extends Application {
 
     public static boolean stillNeedToSetupAnalytics = false;
 
+    public static String desktopIpAddrViaQrCode;
+    public static String desktopBookTitleViaQrCode;
+    public static String desktopBookVersionViaQrCode;
+
+    // WM, experiment -- set 'true' to test plumbing of getting book title, book version, and
+    // BloomDesktop IP address from a QR code instead of the normal advertisement UDP packet:
+    //    - put up a textbox into which user is prompted to enter these elements
+    // To disable this test mode, set to 'false'.
+    public static boolean qrCodeUsedInsteadOfAdvert = false;
+
+    // When QR code data (or its simulation via textbox user input) is being used instead of the
+    // usual advert, this flag indicates WHEN the data has been input. It DOES NOT imply that the
+    // data is valid; it is just a means of exiting a wait-loop.
+    public static boolean gotQrInput = false;
+
+    // When QR code data (or its simulation via textbox user input) is being used instead of the
+    // usual advert, this flag indicates that the data has been input AND is valid.
+    public static boolean qrInputIsValid = false;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -348,4 +367,24 @@ public class BloomReaderApplication extends Application {
         }
         return null;
     }
+
+    // Desktop's IP address from QR code, getter and setter
+    public static String getDesktopIpAddrInQrCode() { return desktopIpAddrViaQrCode; }
+    public static void setDesktopIpAddrInQrCode(String in) { desktopIpAddrViaQrCode = in; }
+
+    // Book title from QR code, getter and setter
+    public static String getBookTitleInQrCode() { return desktopBookTitleViaQrCode; }
+    public static void setBookTitleInQrCode(String in) { desktopBookTitleViaQrCode = in; }
+
+    // Book version from QR code, getter and setter
+    public static String getBookVersionInQrCode() { return desktopBookVersionViaQrCode; }
+    public static void setBookVersionInQrCode(String in) { desktopBookVersionViaQrCode = in; }
+
+    // Flag indicating expected QR code input received, getter and setter
+    public static boolean getQrInputReceived() { return gotQrInput; }
+    public static void setQrInputReceived(boolean in) { gotQrInput = in; }
+
+    // Flag indicating expected QR code input received AND validated, getter and setter
+    public static boolean getQrInputIsValid() { return qrInputIsValid; }
+    public static void setQrInputIsValid(boolean in) { qrInputIsValid = in; }
 }
