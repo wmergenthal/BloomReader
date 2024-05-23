@@ -127,9 +127,6 @@ public class NewBookListenerService extends Service {
             // Pull out from the advertisement packet *header*: Desktop IP address
             String senderIP = new String(packet.getAddress().getHostAddress());
 
-            //Log.d("WM","listen: got data from UDP advert");
-            //Log.d("WM", "listen: outset, verify QR-data-valid is false: " + BloomReaderApplication.getQrInputIsValid());
-
             if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
                 // EXPERIMENT: QR code simulation
                 // Wait until we have user input for Desktop's IP address, book's title, and book's
@@ -185,7 +182,7 @@ public class NewBookListenerService extends Service {
                 multicastLock.release();  // perhaps not strictly necessary but saves some battery
                 return;
             }
-            //Log.d("WM","listen: getting bookFile for title \"" + title + "\"");
+
             File bookFile = IOUtilities.getBookFileIfExists(title);
             Log.d("WM","listen: bookFile=" + bookFile);
             Log.d("WM","listen: title=" + title + ", newBookVersion=" + newBookVersion);
@@ -223,9 +220,7 @@ public class NewBookListenerService extends Service {
                 // we don't start getting it in a reasonable time.
                 Log.d("WM","listen: our IP address is " + getOurIpAddress());
                 addsToSkipBeforeRetry = 3;
-                //Log.d("WM","listen: calling getBook() for \"" + title + "\" from " + senderIP);
-                //getBook(senderIP, title);
-                Log.d("WM","listen: calling getBook_tcp() for \"" + title + "\" from " + senderIP);
+                Log.d("WM","listen: calling getBook_tcp()");
                 getBook_tcp(senderIP, title);
             }
         } catch (JSONException e) {
@@ -411,7 +406,6 @@ public class NewBookListenerService extends Service {
         // "version.txt" must match the name given in Bloom Desktop BookCompressor.CompressDirectory()
         byte[] oldShaBytes = IOUtilities.ExtractZipEntry(bookFile, "version.txt");
         if (oldShaBytes == null) {
-            //Log.d("WM","IsBookUpToDate: oldShaBytes = null, bookFile probably is too, bail");  // WM, temporary
             return false;
         }
         String oldSha = "";
