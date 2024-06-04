@@ -53,15 +53,18 @@ public class BloomReaderApplication extends Application {
     // BloomDesktop IP address from a QR code instead of the normal advertisement UDP packet:
     //    - put up a textbox into which user is prompted to enter these elements
     // To disable this test mode, set to 'false'.
+    // NOTE: to be clear, this is a TEST mode. Its utility will end at some point because the
+    //       released code will enable listening for adverts BOTH via UDP and QR code, on
+    //       separate threads.
     public static boolean qrCodeUsedInsteadOfAdvert = false;
 
-    // When QR code data (or its simulation via textbox user input) is being used instead of the
-    // usual advert, this flag indicates WHEN the data has been input. It DOES NOT imply that the
+    // When QR code data (or its simulation via textbox user input) is being used for the
+    // advert, this flag indicates WHEN the data has been input. It DOES NOT imply that the
     // data is valid; it is just a means of exiting a wait-loop.
     public static boolean gotQrInput = false;
 
-    // When QR code data (or its simulation via textbox user input) is being used instead of the
-    // usual advert, this flag indicates that the data has been input AND is valid.
+    // When QR code data (or its simulation via textbox user input) is being used for the
+    // advert, this flag indicates that the data has been input AND is valid.
     public static boolean qrInputIsValid = false;
 
     @Override
