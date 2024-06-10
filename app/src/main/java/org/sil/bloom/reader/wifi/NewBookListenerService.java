@@ -156,46 +156,7 @@ public class NewBookListenerService extends Service {
             Log.d("WM","listenUDP: bookFile=" + bookFile);
             Log.d("WM","listenUDP: title=" + title + ", newBookVersion=" + newBookVersion);
 
-            getBookIfNewVersion(title, newBookVersion, bookFile, senderIP, sender);
-
-            //boolean bookExists = bookFile != null;
-            //// If the book doesn't exist it can't be up to date.
-            //if (bookExists && IsBookUpToDate(bookFile, title, newBookVersion)) {
-            //    // Enhance: possibly we might want to announce this again if the book has been off the air
-            //    // for a while? So a user doesn't see "nothing happening" if he thinks he just started
-            //    // publishing it, but somehow BR has seen it recently? Thought about just keeping
-            //    // the most recent name, so we'd report a different one even if it had been advertised
-            //    // recently. But there could be two advertisers on the network, which could lead to
-            //    // alternating advertisements. Another idea: find a way to only keep track of, say,
-            //    // books advertised in the last few seconds. Since books are normally advertised
-            //    // every second, a book we haven't seen for even 5 seconds is probably interesting
-            //    // enough to announce again. One way would be, every 5 seconds we copy the current
-            //    // set to an 'old' set and clear current. Then when we see a book, we skip announcing if it is in
-            //    // either set. But only add it to the new one. Then, after 5-10 seconds of not seeing
-            //    // an add, a book would drop out of both. Another approach would be a dictionary
-            //    // mapping title to last-advertised-time, and if > 5s ago announce again.
-            //    if (!_announcedBooks.contains(title)) {
-            //        GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.already_have_version), title) + "\n\n");
-            //        _announcedBooks.add(title); // don't keep saying this.
-            //    }
-            //    Log.d("WM","listenUDP: already have book");
-            //} else {
-            //    if (bookExists) {
-            //        Log.d("WM","listenUDP: requesting updated book");
-            //        GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
-            //    } else {
-            //        Log.d("WM","listenUDP: requesting new book");
-            //        GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), title, sender) + "\n");
-            //    }
-            //    // It can take a few seconds for the transfer to get going. We won't ask for this again unless
-            //    // we don't start getting it in a reasonable time.
-            //    Log.d("WM","listenUDP: our IP address is " + getOurIpAddress());
-            //    addsToSkipBeforeRetry = 3;
-            //    Log.d("WM","listenUDP: calling getBookTcp()");
-            //    // TODO: move the version checks into getBookIfNewVersion() which then calls getBookTcp()
-            //    //  getBookIfNewVersion(senderIP, title, newBookVersion)  [callable by both listeners]
-            //    getBookTcp(senderIP, title);
-            //}
+            requestBookIfNewVersion(title, newBookVersion, bookFile, senderIP, sender);
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
             // the data we expect.
@@ -213,18 +174,6 @@ public class NewBookListenerService extends Service {
 
         Log.d("WM","listenQR: ** TODO **   for now just block");
         wait();
-
-        // Logic to implement --
-	    //     create new thread to watch for QR code
-	    //     if (QR code is received) {
-		//         qrCodeHandler() {
-		//             extract data in QR code     // BloomReaderApplication.get*()
-		//             if (any data is invalid) {
-		//                 update UI, return       // no lock involved here for QR
-		//             }
-        //             getBookIfNewVersion(desktop-IPaddr, book-title, book-version)
-		//         }
-	    //     }
 
         // QR CODE ENTRY: SIMULATION VIA TEXT BOX
         //if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
@@ -261,18 +210,14 @@ public class NewBookListenerService extends Service {
         //}
         // END OF SIMULATION
 
-        // It can take a few seconds for the transfer to get going. We won't ask for this again unless
-        // we don't start getting it in a reasonable time.
-        //Log.d("WM","listenQR: our IP address is " + getOurIpAddress());
-        //addsToSkipBeforeRetry = 3;
-
-        //Log.d("WM","listenQR: calling getBookTcp()");                             // OLD
-        //getBookTcp(senderIP, title);                                              // OLD
-        //Log.d("WM","listenQR: calling getBookIfNewVersion()");                    // NEW
-        //getBookIfNewVersion(title, newBookVersion, bookFile, senderIP, sender);   // NEW
+        // TO BE IMPLEMENTED: logic in BR_NewBookListenerService_pseudocode_06.docx
+        // This will include some of the same things in listenUDP(), including the call below
+        // (commented out) that requests the book
+        //Log.d("WM","listenQR: calling requestBookIfNewVersion()");
+        //requestBookIfNewVersion(title, newBookVersion, bookFile, senderIP, sender);
     }
 
-    private void getBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
+    private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
         boolean bookExists = bkFile != null;
         // If the book doesn't exist it can't be up to date.
         if (bookExists && IsBookUpToDate(bkFile, bkTitle, bkVersion)) {
@@ -293,20 +238,20 @@ public class NewBookListenerService extends Service {
                 GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.already_have_version), bkTitle) + "\n\n");
                 _announcedBooks.add(bkTitle); // don't keep saying this.
             }
-            Log.d("WM","getBookIfNewVersion: already have book");
+            Log.d("WM","requestBookIfNewVersion: already have book");
         } else {
             if (bookExists) {
-                Log.d("WM","getBookIfNewVersion: requesting updated book");
+                Log.d("WM","requestBookIfNewVersion: requesting updated book");
                 GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), bkTitle, sender) + "\n");
             } else {
-                Log.d("WM","getBookIfNewVersion: requesting new book");
+                Log.d("WM","requestBookIfNewVersion: requesting new book");
                 GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), bkTitle, sender) + "\n");
             }
             // It can take a few seconds for the transfer to get going. We won't ask for this again unless
             // we don't start getting it in a reasonable time.
-            Log.d("WM","getBookIfNewVersion: our IP address is " + getOurIpAddress());
+            Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
             addsToSkipBeforeRetry = 3;
-            Log.d("WM","getBookIfNewVersion: calling getBookTcp()");
+            Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
             getBookTcp(desktopIP, bkTitle);
         }
     }
@@ -329,7 +274,8 @@ public class NewBookListenerService extends Service {
             // Once the receive actually starts, don't start more receives until we deal with this.
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
-            gettingBook = true;
+            //Log.d("WM","receivingFile: setting gettingBook");
+            //gettingBook = true;  // do this earlier, as soon as request is sent to Desktop
         }
 
         @Override
@@ -360,6 +306,12 @@ public class NewBookListenerService extends Service {
         sendMessageTask.execute();
     }
 
+    // This is a TCP version of getBook(). That function implements a UDP unicast response to the
+    // Desktop's advertisement. The TCP response implemented here has some advantages:
+    //   - TCP is guaranteed delivery. Yes, invoking getBook() means that Desktop's UDP broadcast
+    //     was received, but there is no guarantee that a UDP response from Reader will likewise be.
+    //   - This function uses no deprecated functions. The UDP response uses two -- one in getBook()
+    //     and one in 'private static class SendMessage'.
     private void getBookTcp(String ip, String title) {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
 
@@ -393,6 +345,10 @@ public class NewBookListenerService extends Service {
             outStream.write(outBuf);
             Log.d("WM","getBookTcp: JSON message sent to desktop, " + outBuf.length + " bytes:");
             Log.d("WM","   " + bookRequest.toString());
+
+            // Set the flag indicating start of transaction with Desktop.
+            Log.d("WM","getBookTcp: setting gettingBook");
+            gettingBook = true;
         }
         catch (IOException i) {
             Log.d("WM","getBookTcp: IOException-1, " + i + ", returning");
@@ -434,6 +390,7 @@ public class NewBookListenerService extends Service {
         // We can stop listening for file transfers and notifications from the desktop.
         Log.d("WM","transferComplete: calling stopSyncServer()");
         stopSyncServer();
+        Log.d("WM","transferComplete: clearing gettingBook");
         gettingBook = false;
 
         final int resultId = success ? R.string.done : R.string.transferFailed;
