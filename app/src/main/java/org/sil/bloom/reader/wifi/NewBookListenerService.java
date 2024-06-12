@@ -251,6 +251,11 @@ public class NewBookListenerService extends Service {
             // we don't start getting it in a reasonable time.
             Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
             addsToSkipBeforeRetry = 3;
+
+            // Make the book request, finally.
+            // Select either UDP or TCP by commenting out the unused call (and its debug msg).
+            //Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
+            //getBook(desktopIP, bkTitle);
             Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
             getBookTcp(desktopIP, bkTitle);
         }
@@ -303,7 +308,7 @@ public class NewBookListenerService extends Service {
         sendMessageTask.ourDeviceName = getOurDeviceName();
         Log.d("WM","getBook: requesting Desktop at " + sourceIP + " for " + title);
         Log.d("WM","  our IP = " + sendMessageTask.ourIpAddress + ", our device = " + sendMessageTask.ourDeviceName);
-        sendMessageTask.execute();
+        sendMessageTask.execute();  // deprecated method
     }
 
     // This is a TCP version of getBook(). That function implements a UDP unicast response to the
@@ -546,7 +551,7 @@ public class NewBookListenerService extends Service {
         public String desktopIpAddress;
         public String ourDeviceName;
         @Override
-        protected Void doInBackground(Void... params) {
+        protected Void doInBackground(Void... params) {    // deprecated
             try {
                 InetAddress receiverAddress = InetAddress.getByName(desktopIpAddress);
                 DatagramSocket socket = new DatagramSocket();
