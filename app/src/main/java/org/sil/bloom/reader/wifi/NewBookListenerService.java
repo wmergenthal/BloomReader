@@ -88,8 +88,8 @@ public class NewBookListenerService extends Service {
 
         try {
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
-            //Log.e("UDP", "Waiting for UDP broadcast");
-            Log.d("UDP", "Waiting for UDP broadcast");
+            Log.e("UDP", "Waiting for UDP broadcast");
+            Log.d("WM", "listenUDP: waiting for UDP broadcast");  // WM, temporary
             socket.receive(packet);     // blocking call
 
             // WM, debug: show a packet received and print its payload.
@@ -352,7 +352,7 @@ public class NewBookListenerService extends Service {
             Log.d("WM","   " + bookRequest.toString());
 
             // Set the flag indicating start of transaction with Desktop.
-            Log.d("WM","getBookTcp: setting gettingBook");
+            Log.d("WM","getBookTcp: setting \'gettingBook\' flag");
             gettingBook = true;
         }
         catch (IOException i) {
@@ -395,7 +395,7 @@ public class NewBookListenerService extends Service {
         // We can stop listening for file transfers and notifications from the desktop.
         Log.d("WM","transferComplete: calling stopSyncServer()");
         stopSyncServer();
-        Log.d("WM","transferComplete: clearing gettingBook");
+        Log.d("WM","transferComplete: clearing \'gettingBook\' flag");
         gettingBook = false;
 
         final int resultId = success ? R.string.done : R.string.transferFailed;
