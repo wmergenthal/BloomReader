@@ -55,7 +55,8 @@ public class NewBookListenerService extends Service {
     // Must match Bloom Desktop UDPListener._portToListen.
     // Must be different from ports in NewBookListenerService.startListenForUDPBroadcast
     // and SyncServer._serverPort.
-    static int desktopPort = 5915;
+    static int desktopPortUDP = 5915;
+    static int desktopPortTCP = 5916;
     boolean gettingBook = false;
     boolean httpServiceRunning = false;
     int addsToSkipBeforeRetry;
@@ -279,8 +280,8 @@ public class NewBookListenerService extends Service {
             // Once the receive actually starts, don't start more receives until we deal with this.
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
-            //Log.d("WM","receivingFile: setting gettingBook");
-            //gettingBook = true;  // do this earlier, as soon as request is sent to Desktop
+            Log.d("WM","receivingFile: \"" + name + "\"");
+            //gettingBook = true;  -- do this earlier, as soon as request is sent to Desktop
         }
 
         @Override
@@ -306,7 +307,7 @@ public class NewBookListenerService extends Service {
         sendMessageTask.desktopIpAddress = sourceIP;
         sendMessageTask.ourIpAddress = getOurIpAddress();
         sendMessageTask.ourDeviceName = getOurDeviceName();
-        Log.d("WM","getBook: requesting Desktop at " + sourceIP + " for " + title);
+        Log.d("WM","getBook: requesting Desktop at " + sourceIP + ":" + desktopPortUDP + " for " + title);
         Log.d("WM","  our IP = " + sendMessageTask.ourIpAddress + ", our device = " + sendMessageTask.ourDeviceName);
         sendMessageTask.execute();  // deprecated method
     }
@@ -330,8 +331,8 @@ public class NewBookListenerService extends Service {
 
         try {
             // Establish a connection to Desktop.
-            Log.d("WM","getBookTcp: creating TCP socket to Desktop at " + ip + ":" + desktopPort);
-            socket = new Socket(ip, desktopPort);
+            Log.d("WM","getBookTcp: creating TCP socket to Desktop at " + ip + ":" + desktopPortTCP);
+            socket = new Socket(ip, desktopPortTCP);
             Log.d("WM","getBookTcp: got TCP socket; CONNECTED");
 
             // Create and send message to Desktop.
@@ -475,7 +476,7 @@ public class NewBookListenerService extends Service {
                 try {
                     Integer port = 5913; // Must match port in Bloom class WiFiAdvertiser
                     while (shouldRestartSocketListen) {
-                        Log.d("WM","startListenForUDPBroadcast: calling listenUDP(port " + port + ")");
+                        Log.d("WM","startListenForUDPBroadcast: calling listenUDP (port " + port + ")");
                         listenUDP(port);
                     }
                     //if (!shouldListenForUDPBroadcast) throw new ThreadDeath();
@@ -566,7 +567,8 @@ public class NewBookListenerService extends Service {
                     e.printStackTrace();
                 }
                 byte[] buffer = data.toString().getBytes("UTF-8");
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPort);
+                Log.d("WM","doInBackground: creating UDP packet for Desktop at " + desktopIpAddress + ":" + desktopPortUDP);
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPortUDP);
                 socket.send(packet);
             } catch (IOException e) {
                 e.printStackTrace();
