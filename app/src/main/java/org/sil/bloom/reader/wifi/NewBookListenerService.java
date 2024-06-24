@@ -255,10 +255,10 @@ public class NewBookListenerService extends Service {
 
             // Make the book request, finally.
             // Select either UDP or TCP by commenting out the unused call (and its debug msg).
-            //Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
-            //getBook(desktopIP, bkTitle);
-            Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
-            getBookTcp(desktopIP, bkTitle);
+            Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
+            getBook(desktopIP, bkTitle);
+            //Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
+            //getBookTcp(desktopIP, bkTitle);
         }
     }
 
@@ -307,9 +307,11 @@ public class NewBookListenerService extends Service {
         sendMessageTask.desktopIpAddress = sourceIP;
         sendMessageTask.ourIpAddress = getOurIpAddress();
         sendMessageTask.ourDeviceName = getOurDeviceName();
-        Log.d("WM","getBook: requesting Desktop at " + sourceIP + ":" + desktopPortUDP + " for " + title);
-        Log.d("WM","  our IP = " + sendMessageTask.ourIpAddress + ", our device = " + sendMessageTask.ourDeviceName);
         sendMessageTask.execute();  // deprecated method
+
+        // Set the flag indicating start of transaction with Desktop.
+        Log.d("WM","getBook: setting \'gettingBook\' flag");
+        gettingBook = true;
     }
 
     // This is a TCP version of getBook(). That function implements a UDP unicast response to the
@@ -570,6 +572,8 @@ public class NewBookListenerService extends Service {
                 Log.d("WM","doInBackground: creating UDP packet for Desktop at " + desktopIpAddress + ":" + desktopPortUDP);
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPortUDP);
                 socket.send(packet);
+                Log.d("WM","doInBackground: JSON message sent to desktop, " + buffer.length + " bytes:");
+                Log.d("WM","   " + data.toString());
             } catch (IOException e) {
                 e.printStackTrace();
             }
