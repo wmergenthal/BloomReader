@@ -255,10 +255,10 @@ public class NewBookListenerService extends Service {
 
             // Make the book request, finally.
             // Select either UDP or TCP by commenting out the unused call (and its debug msg).
-            Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
-            getBook(desktopIP, bkTitle);
-            //Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
-            //getBookTcp(desktopIP, bkTitle);
+            //Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
+            //getBook(desktopIP, bkTitle);
+            Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
+            getBookTcp(desktopIP, bkTitle);
         }
     }
 
