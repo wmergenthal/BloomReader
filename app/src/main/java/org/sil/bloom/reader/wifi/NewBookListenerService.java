@@ -16,6 +16,7 @@ import org.sil.bloom.reader.BloomReaderApplication;
 import org.sil.bloom.reader.IOUtilities;
 import org.sil.bloom.reader.MainActivity;
 import org.sil.bloom.reader.R;
+import org.sil.bloom.reader.SyncActivity;
 //import org.sil.bloom.reader.models.BookCollection;
 
 import java.io.File;
@@ -57,6 +58,8 @@ public class NewBookListenerService extends Service {
     // and SyncServer._serverPort.
     static int desktopPortUDP = 5915;
     static int desktopPortTCP = 5916;
+    static int numMillisecsBeforeStartQrListener = 20000;
+    int udpPktLen;
     boolean gettingBook = false;
     boolean httpServiceRunning = false;
     int addsToSkipBeforeRetry;
@@ -77,6 +80,7 @@ public class NewBookListenerService extends Service {
             socket.setBroadcast(true);
         }
 
+        udpPktLen = 0;
         // MulticastLock seems to have become necessary for receiving a broadcast packet around Android 8.
         WifiManager wifi;
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -93,12 +97,13 @@ public class NewBookListenerService extends Service {
             Log.d("WM", "listenUDP: waiting for UDP broadcast");  // WM, temporary
             socket.receive(packet);     // blocking call
 
+            udpPktLen = packet.getLength();
+
             // WM, debug: show a packet received and print its payload.
-            int pktLen = packet.getLength();
             byte[] pktBytes = packet.getData();
-            Log.d("WM", "listenUDP: got UDP packet (" + pktLen + " bytes) from " + packet.getAddress().getHostAddress());
+            Log.d("WM", "listenUDP: got UDP packet (" + udpPktLen + " bytes) from " + packet.getAddress().getHostAddress());
             String pktString = new String(pktBytes);
-            Log.d("WM", "   advertisement = " + pktString.substring(0, pktLen));
+            Log.d("WM", "   advertisement = " + pktString.substring(0, udpPktLen));
             // WM, end of debug packet print
 
             if (gettingBook) {
@@ -172,50 +177,39 @@ public class NewBookListenerService extends Service {
     }
 
     private void listenQR() throws Exception {
+        // UDP-listener gets first crack at receiving an advert and requesting the
+        // book offered. But if it hears nothing for the interval specified by
+        // 'numMillisecsBeforeStartQrListener' then start QR-listener so it can have
+        // a shot.
 
-        Log.d("WM","listenQR: ** TODO **   for now just block");
-        wait();
+        Log.d("WM","listenQR: begin initial wait for UDP-listener to get advert");
+        Thread.sleep(numMillisecsBeforeStartQrListener);
 
-        // QR CODE ENTRY: SIMULATION VIA TEXT BOX
-        //if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
-        //    // Wait until we have user input for Desktop's IP address, book's title, and book's
-        //    // version. Title and version are not part of the reply to Desktop but Reader does
-        //    // need them to decide whether to request this book.
-        //    while (BloomReaderApplication.getQrInputReceived() == false) {
-        //        Thread.sleep(500);
-        //    }
-        //
-        //    NOTE: (b) in the JSON advert is a hash of I don't know what all. Requiring a user to
-        //    enter 44 characters of gibberish would be time consuming and (worse) error-prone, but
-        //    I don't know where in the tablet the current hash can be displayed. If there is such
-        //    a spot the user can copy/paste from there into the Reader popup textbox; otherwise,
-        //    type carefully! The textbox is displayed for WiFi-listen when the advertisement
-        //    alternative is in effect -- i.e., 'BloomReaderApplication.qrCodeUsedInsteadOfAdvert'
-        //    is set true. See GetFromWiFiActivity::onCreate().
-        //
-        //    // User input was parsed out elsewhere into separate strings. If they are valid,
-        //    // use them now to update what we got (if anything) from the UDP advertisement.
-        //    if (BloomReaderApplication.getQrInputIsValid()) {
-        //        senderIP = BloomReaderApplication.getDesktopIpAddrInQrCode();
-        //        title = BloomReaderApplication.getBookTitleInQrCode();
-        //        newBookVersion = BloomReaderApplication.getBookVersionInQrCode();
-        //
-        //        Log.d("WM", "listen: overwrite IP address from manual entry: " + senderIP);
-        //        Log.d("WM", "listen: overwrite book title from manual entry: " + title);
-        //        Log.d("WM", "listen: overwrite book version from manual entry: " + newBookVersion);
-        //    } else {
-        //        Log.d("WM", "listen: QR data invalid, ignore it, release multicastLock and return");
-        //        multicastLock.release();  // perhaps not strictly necessary but saves some battery
-        //        return;
-        //    }
-        //}
-        // END OF SIMULATION
+        Log.d("WM","listenQR: wake up, see if UDP-listener got anything");
+        if (udpPktLen > 0) {
+            Log.d("WM","listenQR: it did (" + udpPktLen + " bytes), so bail");
+            return;
+        }
+
+        Log.d("WM","listenQR: it didn't, so turn on QR scanning");
+
+        Intent qrScan = new Intent(this, SyncActivity.class);
+        // WM, not sure if C# needs a null check, use for now until I better understand scan logic
+        if (qrScan == null) {
+            Log.d("WM","listenQR: qrScan == null, returning");
+            return;
+        }
+        Log.d("WM","listenQR: calling startActivity()");
+        startActivity(qrScan);
+        Log.d("WM","listenQR: did startActivity(), done");
 
         // TO BE IMPLEMENTED: logic in BR_NewBookListenerService_pseudocode_06.docx
         // This will include some of the same things in listenUDP(), including the call below
         // (commented out) that requests the book
         //Log.d("WM","listenQR: calling requestBookIfNewVersion()");
         //requestBookIfNewVersion(title, newBookVersion, bookFile, senderIP, sender);
+        //
+        // No, I think this is better initiated from SyncActivity::onCreateOptionsMenu()
     }
 
     private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
@@ -494,7 +488,8 @@ public class NewBookListenerService extends Service {
         QRListenerThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    while (shouldRestartQRListen) {
+                    //while (shouldRestartQRListen) {
+                    if (shouldRestartQRListen) {
                         Log.d("WM", "startListenForQRCode: calling listenQR()");
                         listenQR();
                     }

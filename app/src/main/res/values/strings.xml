@@ -113,4 +113,12 @@
     <string name="downloading_file">Downloading %s</string>
     <string name="downloading_books">Downloading books</string>
     <string name="view_books">View books</string>
+    <string name="sync_message">On the More menu, click Sync with Android.</string>
+    <string name="alt_sync_message">Or enter this code into the desktop dialog:</string>
+    <string name="action_settings">Settings</string>
+    <string name="scan">Scan</string>
+    <string name="continue_button_caption">Continue</string>
+    <string name="sync_title">Scan QR code</string>
+    <string name="sync_success">QR scan was successful!</string>
+    <string name="title_activity_sync">SyncActivity</string>
 </resources>

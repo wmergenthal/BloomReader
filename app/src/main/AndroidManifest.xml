@@ -277,6 +277,9 @@
         <activity
             android:name=".ShelfActivity"
             android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".SyncActivity"
+            android:label="@string/title_activity_sync"></activity>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -323,5 +326,8 @@
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- so we can scan barcode (HearThisAndroid) -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
 </manifest>
