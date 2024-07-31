@@ -55,14 +55,21 @@ public class SyncActivity extends AppCompatActivity implements
     private static final int REQUEST_CAMERA_PERMISSION = 201;
     boolean scanning = false;
     TextView progressView;
-    //String qrDecodedData;
 
     private BarcodeDetector barcodeDetector;
     private CameraSource cameraSource;
+    private static String qrDecodedData;
+    private static boolean qrDecodedDataIsReady = false;
 
-    //public String getQrData() {
-    //    return qrDecodedData;
-    //}
+    // Getter for decoded QR scan data.
+    public static String GetQrData() {
+        return qrDecodedData;
+    }
+
+    // Getter for flag indicating whether decoded data from QR scan is ready.
+    public static boolean GetQrDataAvailable() {
+        return qrDecodedDataIsReady;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -166,13 +173,14 @@ public class SyncActivity extends AppCompatActivity implements
                         //Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor.receiveDetections, starting");
                         final SparseArray<Barcode> barcodes = detections.getDetectedItems();
                         if (scanning && barcodes.size() != 0) {
-                            String contents = barcodes.valueAt(0).displayValue;
+                            //String contents = barcodes.valueAt(0).displayValue;
+                            qrDecodedData = barcodes.valueAt(0).displayValue;
                             Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor,");
                             Log.d("WM","   barcodes.size() = " + barcodes.size());
-                            Log.d("WM","   barcode content = " + contents);
-                            if (contents != null) {
+                            Log.d("WM","   barcode content = " + qrDecodedData);
+                            if (qrDecodedData != null) {
                                 scanning = false; // don't want to repeat this if it finds the image again
-                                Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, non-null contents");
+                                Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, non-null content");
                                 runOnUiThread(new Runnable() {
                                                   @Override
                                                   public void run() {
@@ -186,16 +194,11 @@ public class SyncActivity extends AppCompatActivity implements
                                                       // except that whatever text the QR code represents shows on the screen, which might
                                                       // provide some users a clue that all is not well.
                                                       //
-                                                      // Display the decoded QR contents on the tablet screen.
+                                                      // Display the decoded QR content on the tablet screen.
                                                       Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, show QR data");
-                                                      ipView.setText(contents);
+                                                      ipView.setText(qrDecodedData);
                                                       preview.setVisibility(View.INVISIBLE);
-
-                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, request book  ** TODO **");
-                                                      // WM, TODO: use new BloomReader TCP mechanism instead of SendMessage()
-                                                      //SendMessage sendMessageTask = new SendMessage();
-                                                      //sendMessageTask.ourIpAddress = getOurIpAddress();
-                                                      //sendMessageTask.execute();
+                                                      qrDecodedDataIsReady = true;
 
                                                       // We have what we need from the scan so turn off the camera.
                                                       Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, turn off camera");

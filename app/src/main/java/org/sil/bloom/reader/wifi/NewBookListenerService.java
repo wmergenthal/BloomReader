@@ -59,7 +59,8 @@ public class NewBookListenerService extends Service {
     // and SyncServer._serverPort.
     static int desktopPortUDP = 5915;
     static int desktopPortTCP = 5916;
-    static int numMillisecsBeforeStartQrListener = 20000;
+    static int numSecondsBeforeStartQrListener = 20;
+    static int numSecondsToWaitForQrData = 30;
     int udpPktLen;
     boolean gettingBook = false;
     boolean httpServiceRunning = false;
@@ -89,10 +90,6 @@ public class NewBookListenerService extends Service {
         multicastLock = wifi.createMulticastLock("lock");
         multicastLock.acquire();
 
-        // Even if we're not using QR data clearing this flag won't affect anything, so just do it.
-        // WM, TODO: this is part of early textbox manual-entry simulation of QR data. Nuke it.
-        //BloomReaderApplication.setQrInputReceived(false);
-
         try {
             packet = new DatagramPacket(recvBuf, recvBuf.length);
             Log.e("UDP", "Waiting for UDP broadcast");
@@ -119,7 +116,8 @@ public class NewBookListenerService extends Service {
         //   - We are already receiving a book and can't handle new adverts. This one will
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
-        boolean willIgnore = false;
+        //boolean willIgnore = false;
+        boolean willIgnore = true;  // WM, temporary to enable testing QR scan logic
         if (gettingBook) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
             willIgnore = true;
@@ -133,10 +131,10 @@ public class NewBookListenerService extends Service {
         if (willIgnore == false) {
             // We have a valid advertisement via UDP. Pull out from the packet *header* the
             // Desktop IP address, then process the advert and make a book request.
-            String senderIP = new String(packet.getAddress().getHostAddress());
             String pktString = new String(packet.getData()).trim();
+            String pktSenderIP = new String(packet.getAddress().getHostAddress());
             Log.d("WM", "listenUDP: calling processBookAdvert()");  // WM, temporary
-            advertProcessedOk = processBookAdvert(pktString, senderIP);
+            advertProcessedOk = processBookAdvert(pktString, pktSenderIP);
         }
 
         Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", close up and return");  // WM, temporary
@@ -200,36 +198,59 @@ public class NewBookListenerService extends Service {
 
     private void listenQR() throws Exception {
         // UDP-listener gets first crack at receiving an advert and requesting the
-        // book offered. But if it hears nothing for the interval specified by
-        // 'numMillisecsBeforeStartQrListener' then start QR-listener so it can have
-        // a shot.
+        // book offered. But if it hears nothing for the specified interval then give
+        // QR-scanning a shot.
 
-        Log.d("WM","listenQR: begin initial wait for UDP-listener to get advert");
-        Thread.sleep(numMillisecsBeforeStartQrListener);
+        Log.d("WM","listenQR: begin wait, allow UDP-listener to get advert");
+        Thread.sleep(numSecondsBeforeStartQrListener * 1000);
 
         Log.d("WM","listenQR: wake up, see if UDP-listener got anything");
+        // TODO: improve this check so it won't take a partial or corrupted UDP advert string.
         if (udpPktLen > 0) {
             Log.d("WM","listenQR: it did (" + udpPktLen + " bytes), so bail");
             return;
         }
 
-        Log.d("WM","listenQR: it didn't, so turn on QR scanning");
+        Log.d("WM","listenQR: it didn't, so enable QR scanning");
 
         Intent qrScan = new Intent(this, SyncActivity.class);
         // WM, not sure if C# needs a null check, use for now until I better understand scan logic
         if (qrScan == null) {
-            Log.d("WM","listenQR: qrScan == null, returning");
+            Log.d("WM","listenQR: qrScan == null, bail");
             return;
         }
-        Log.d("WM","listenQR: calling startActivity()");
+        Log.d("WM","listenQR: calling startActivity(qrScan)");
         startActivity(qrScan);
-        Log.d("WM","listenQR: did startActivity(), done");
+        Log.d("WM","listenQR: startActivity(qrScan) returned");
 
-        // TODO:
-        //   - get the QR decoded data string from SyncActivity.java
-        //   - pull out the Desktop IP address
-        //   - call processBookAdvert(QR-data, Desktop-IP);
+        // Wait (up to the specified max seconds) for a decoded QR scan to be available.
+        // It is an advert identical to what would have also been UDP-broadcast. When it
+        // is available, grab it.
+        String qrString = null;
+        for (int i = 0; i < numSecondsToWaitForQrData; i++) {
+            Thread.sleep(1000);
+            if (SyncActivity.GetQrDataAvailable() == true) {
+                qrString = SyncActivity.GetQrData();
+                Log.d("WM","listenQR: " + i + " secs, got QR data!");
+                break;
+            }
+            Log.d("WM","listenQR: " + i + " secs, no QR data yet");
+        }
 
+        // TODO: do we need checks to validate the advert payload?
+        // We waited long enough. If we did get an advertisement via QR:
+        //   - extract from it the Desktop's IP address
+        //   - process it just like a UDP advert would be
+        if (qrString == null) {
+            Log.d("WM", "listenQR: didn't get QR data, bail");
+            return;
+        }
+        JSONObject msgJsonQr = new JSONObject(qrString);
+        String qrSenderIP = new String(msgJsonQr.getString("senderIP"));
+        Log.d("WM", "listenQR: calling processBookAdvert()");  // WM, temporary
+        advertProcessedOk = processBookAdvert(qrString, qrSenderIP);
+
+        Log.d("WM", "listenQR: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
 
     private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
@@ -341,7 +362,7 @@ public class NewBookListenerService extends Service {
         Log.d("WM","getBookTcp: calling startSyncServer()");
         startSyncServer();
 
-        Socket socketTcp = null;  // ungainly name but avoid possible confusion with UDP "socket"
+        Socket socketTcp = null;  // ungainly name but avoids possible confusion with UDP "socket"
         OutputStream outStream = null;
 
         try {
@@ -500,6 +521,7 @@ public class NewBookListenerService extends Service {
                 }
             }
         });
+        Log.d("WM","startListenForUDPBroadcast: calling UDPListenerThread.start()");
         UDPListenerThread.start();
     }
 
@@ -517,6 +539,7 @@ public class NewBookListenerService extends Service {
                 }
             }
         });
+        Log.d("WM", "startListenForQRCode: calling QRListenerThread.start()");
         QRListenerThread.start();
     }
 
@@ -524,12 +547,13 @@ public class NewBookListenerService extends Service {
         // stop UDP listener --
         Log.d("WM","stopListen: stopping UDP listener");
         shouldRestartSocketListen = false;
-        //socket.close();
 
         // stop QR listener --
         Log.d("WM","stopListen: stopping QR listener  ** TODO **");
         shouldRestartQRListen = false;
-        // TODO -- what else needs doing here?
+        // TODO -- anything else needs doing here?
+        //         With just one caller this function seems to offer little if any benefit...
+        //         Consider moving its contents into onDestroy().
     }
 
     @Override
