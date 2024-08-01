@@ -117,7 +117,7 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
         //boolean willIgnore = false;
-        boolean willIgnore = true;  // WM, temporary to enable testing QR scan logic
+        boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
         if (gettingBook) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
             willIgnore = true;
@@ -142,10 +142,13 @@ public class NewBookListenerService extends Service {
         socket.close();
     }
 
+    // Once the advertisement is obtained as a string, either from QR code or UDP,
+    // this function is called to extract the needed pieces of info and then create
+    // a book request and send it to BloomDesktop.
+    // The advert string and Desktop IP address string are passed in as arguments.
     private Boolean processBookAdvert(String advertString, String targetIP) throws Exception {
         try {
-            // Pull out from the advertisement *payload*: (a) book title, (b) book version
-            //String message = new String(packet.getData()).trim();
+            // Pull out from the advertisement payload: (a) book title, (b) book version
             JSONObject msgJson = new JSONObject(advertString);
             String title = new String(msgJson.getString("title"));
             String newBookVersion = new String(msgJson.getString("version"));
@@ -227,7 +230,7 @@ public class NewBookListenerService extends Service {
         // It is an advert identical to what would have also been UDP-broadcast. When it
         // is available, grab it.
         String qrString = null;
-        for (int i = 0; i < numSecondsToWaitForQrData; i++) {
+        for (int i = 1; i <= numSecondsToWaitForQrData; i++) {
             Thread.sleep(1000);
             if (SyncActivity.GetQrDataAvailable() == true) {
                 qrString = SyncActivity.GetQrData();
@@ -249,6 +252,11 @@ public class NewBookListenerService extends Service {
         String qrSenderIP = new String(msgJsonQr.getString("senderIP"));
         Log.d("WM", "listenQR: calling processBookAdvert()");  // WM, temporary
         advertProcessedOk = processBookAdvert(qrString, qrSenderIP);
+
+        // TODO: take down the QR scan screen, let it go back to the Wi-Fi screen again.
+        Log.d("WM", "listenQR: try to close scan screen");  // WM, temporary
+        SyncActivity.ActivityStop();
+        Log.d("WM", "listenQR: attempted to close screen");  // WM, temporary
 
         Log.d("WM", "listenQR: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
@@ -549,7 +557,7 @@ public class NewBookListenerService extends Service {
         shouldRestartSocketListen = false;
 
         // stop QR listener --
-        Log.d("WM","stopListen: stopping QR listener  ** TODO **");
+        Log.d("WM","stopListen: stopping QR listener");
         shouldRestartQRListen = false;
         // TODO -- anything else needs doing here?
         //         With just one caller this function seems to offer little if any benefit...

@@ -60,6 +60,7 @@ public class SyncActivity extends AppCompatActivity implements
     private CameraSource cameraSource;
     private static String qrDecodedData;
     private static boolean qrDecodedDataIsReady = false;
+    private static boolean shouldStopNow = false;
 
     // Getter for decoded QR scan data.
     public static String GetQrData() {
@@ -69,6 +70,13 @@ public class SyncActivity extends AppCompatActivity implements
     // Getter for flag indicating whether decoded data from QR scan is ready.
     public static boolean GetQrDataAvailable() {
         return qrDecodedDataIsReady;
+    }
+
+    // Method by which another class can tell this activity to close.
+    //public static void ActivityStop(AppCompatActivity sync) {
+    public static void ActivityStop() {
+        Log.d("WM","SyncActivity::ActivityStop, setting flag to stop");
+        shouldStopNow = true;
     }
 
     @Override
@@ -124,7 +132,6 @@ public class SyncActivity extends AppCompatActivity implements
         Log.d("WM","SyncActivity::onPause, done");
     }
 
-    // WM, do we need this menu?
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         Log.d("WM","SyncActivity::onCreateOptionsMenu, starting");
@@ -145,12 +152,10 @@ public class SyncActivity extends AppCompatActivity implements
                         .build();
                 Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, build done");
 
-                if (cameraSource != null)
-                {
+                if (cameraSource != null) {
                     //cameraSource.stop();
                     cameraSource.release();
                     cameraSource = null;
-                    Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, deleted cameraSource");
                 }
 
                 cameraSource = new CameraSource.Builder(SyncActivity.this, barcodeDetector)
@@ -160,7 +165,6 @@ public class SyncActivity extends AppCompatActivity implements
                 Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, new CameraSource done");
 
                 barcodeDetector.setProcessor(new Detector.Processor<Barcode>() {
-                    //Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick.barcodeDetector.setProcessor, starting");
 
                     @Override
                     public void release() {
@@ -169,18 +173,16 @@ public class SyncActivity extends AppCompatActivity implements
 
                     @Override
                     public void receiveDetections(Detector.Detections<Barcode> detections) {
-                        // WM, this debug output line spews MUCH content, suppress it
-                        //Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor.receiveDetections, starting");
                         final SparseArray<Barcode> barcodes = detections.getDetectedItems();
                         if (scanning && barcodes.size() != 0) {
                             //String contents = barcodes.valueAt(0).displayValue;
                             qrDecodedData = barcodes.valueAt(0).displayValue;
-                            Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor,");
+                            Log.d("WM","SyncActivity::onCreateOptionsMenu,");
                             Log.d("WM","   barcodes.size() = " + barcodes.size());
                             Log.d("WM","   barcode content = " + qrDecodedData);
                             if (qrDecodedData != null) {
                                 scanning = false; // don't want to repeat this if it finds the image again
-                                Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, non-null content");
+                                Log.d("WM","SyncActivity::onCreateOptionsMenu, non-null content");
                                 runOnUiThread(new Runnable() {
                                                   @Override
                                                   public void run() {
@@ -195,21 +197,36 @@ public class SyncActivity extends AppCompatActivity implements
                                                       // provide some users a clue that all is not well.
                                                       //
                                                       // Display the decoded QR content on the tablet screen.
-                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, show QR data");
+                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu, show QR data onscreen");
                                                       ipView.setText(qrDecodedData);
                                                       preview.setVisibility(View.INVISIBLE);
                                                       qrDecodedDataIsReady = true;
 
                                                       // We have what we need from the scan so turn off the camera.
-                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor, turn off camera");
+                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu, turn off camera");
                                                       cameraSource.stop();
                                                       cameraSource.release();
                                                       cameraSource = null;
+
+                                                      // TODO: is this a feasible/safe place to take down the screen,
+                                                      //       so we can get back to the Wi-Fi screen?
+                                                      //SyncActivity thisActivity = this;
+                                                      while (shouldStopNow == false) {
+                                                          // Spin here waiting for permission to shut down.
+                                                          try {
+                                                              Log.d("WM", "SyncActivity::onCreateOptionsMenu, waiting for permission to close");
+                                                              Thread.sleep(1000);
+                                                          } catch (InterruptedException e) {
+                                                              e.printStackTrace();
+                                                          }
+                                                      }
+                                                      Log.d("WM","SyncActivity::onCreateOptionsMenu, permission granted, closing");
+                                                      finish();
                                                   }
                                               });
 
                             } else {
-                                Log.d("WM","SyncActivity::onCreateOptionsMenu.setProcessor.receiveDetections, null contents");
+                                Log.d("WM","SyncActivity::onCreateOptionsMenu, null contents");
                             }
                         }
                     }
