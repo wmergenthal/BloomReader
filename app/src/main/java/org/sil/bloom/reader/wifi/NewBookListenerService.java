@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.io.DataOutputStream;  // WM, added
 import java.io.OutputStream;      // WM, added
-import java.io.InputStream;       // WM, added
 import java.net.Socket;           // WM, added
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -51,7 +50,7 @@ public class NewBookListenerService extends Service {
     Thread QRListenerThread;
     private boolean shouldRestartSocketListen = true;
     private boolean shouldRestartQRListen = true;
-    private boolean advertProcessedOk = false;  // WM, *** is this truly helpful? can I remove it?
+    private boolean advertProcessedOk = false;  // TODO, WM *** is this truly helpful? remove it?
 
     // port on which the desktop is listening for our book request.
     // Must match Bloom Desktop UDPListener._portToListen.
@@ -112,10 +111,11 @@ public class NewBookListenerService extends Service {
             return;
         }
 
-        // We received an apparent advert. There are a few reasons to ignore it:
+        // We received an apparent UDP advert. There are a few reasons to ignore it:
         //   - We are already receiving a book and can't handle new adverts. This one will
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
+
         //boolean willIgnore = false;
         boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
         if (gettingBook) {
@@ -189,6 +189,7 @@ public class NewBookListenerService extends Service {
             Log.d("WM","processBookAdvert: title=" + title + ", newBookVersion=" + newBookVersion);
 
             requestBookIfNewVersion(title, newBookVersion, bookFile, targetIP, sender);
+
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
             // the data we expect.
@@ -217,7 +218,6 @@ public class NewBookListenerService extends Service {
         Log.d("WM","listenQR: it didn't, so enable QR scanning");
 
         Intent qrScan = new Intent(this, SyncActivity.class);
-        // WM, not sure if C# needs a null check, use for now until I better understand scan logic
         if (qrScan == null) {
             Log.d("WM","listenQR: qrScan == null, bail");
             return;
@@ -240,12 +240,14 @@ public class NewBookListenerService extends Service {
             Log.d("WM","listenQR: " + i + " secs, no QR data yet");
         }
 
-        // TODO: do we need checks to validate the advert payload?
-        // We waited long enough. If we did get an advertisement via QR:
-        //   - extract from it the Desktop's IP address
-        //   - process it just like a UDP advert would be
+        // We have waited long enough.
+        //   - If we got nothing, close QR scan screen and get back to Wi-Fi screen.
+        //   - But if we got an advertisement via QR:
+        //       - extract from it the Desktop's IP address
+        //       - process it just like a UDP advert would be
         if (qrString == null) {
-            Log.d("WM", "listenQR: didn't get QR data, bail");
+            Log.d("WM", "listenQR: didn't get QR data, close scan screen and exit");
+            SyncActivity.ActivityStop();
             return;
         }
         JSONObject msgJsonQr = new JSONObject(qrString);
@@ -253,10 +255,9 @@ public class NewBookListenerService extends Service {
         Log.d("WM", "listenQR: calling processBookAdvert()");  // WM, temporary
         advertProcessedOk = processBookAdvert(qrString, qrSenderIP);
 
-        // TODO: take down the QR scan screen, let it go back to the Wi-Fi screen again.
-        Log.d("WM", "listenQR: try to close scan screen");  // WM, temporary
+        // We got the QR data so close its screen and return to the Wi-Fi screen.
+        Log.d("WM", "listenQR: advert processed, close scan screen");  // WM, temporary
         SyncActivity.ActivityStop();
-        Log.d("WM", "listenQR: attempted to close screen");  // WM, temporary
 
         Log.d("WM", "listenQR: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
@@ -559,8 +560,7 @@ public class NewBookListenerService extends Service {
         // stop QR listener --
         Log.d("WM","stopListen: stopping QR listener");
         shouldRestartQRListen = false;
-        // TODO -- anything else needs doing here?
-        //         With just one caller this function seems to offer little if any benefit...
+        // TODO -- with just one caller this function seems to offer little if any benefit.
         //         Consider moving its contents into onDestroy().
     }
 

@@ -39,8 +39,11 @@ import org.sil.bloom.reader.wifi.AcceptNotificationHandler;
 import org.sil.bloom.reader.wifi.AcceptFileHandler;
 import org.sil.bloom.reader.wifi.RequestFileHandler;
 
-// WM -- I will comment out anything in this file having to do with SyncServer,
-//       since BloomReader already instantiates and uses it for Wi-Fi book transfer.
+// WM -- This is an edited version of SyncActivity.java in HearThisAndroid.
+//       I am removing everything having to do with SyncServer since BloomReader
+//       already instantiates and uses it for Wi-Fi book transfer. I also remove
+//       things having to do with communications, file transfer, etc, for the same
+//       reason: BloomReader already handles those.
 
 public class SyncActivity extends AppCompatActivity implements
         AcceptNotificationHandler.NotificationListener,
@@ -51,14 +54,13 @@ public class SyncActivity extends AppCompatActivity implements
     Button continueButton;
     TextView ipView;
     SurfaceView preview;
-    //int desktopPort = 11007; // port on which the desktop is listening for our IP address
     private static final int REQUEST_CAMERA_PERMISSION = 201;
     boolean scanning = false;
     TextView progressView;
 
     private BarcodeDetector barcodeDetector;
     private CameraSource cameraSource;
-    private static String qrDecodedData;
+    private static String qrDecodedData = null;
     private static boolean qrDecodedDataIsReady = false;
     private static boolean shouldStopNow = false;
 
@@ -67,13 +69,12 @@ public class SyncActivity extends AppCompatActivity implements
         return qrDecodedData;
     }
 
-    // Getter for flag indicating whether decoded data from QR scan is ready.
+    // Flag getter indicating whether decoded data from QR scan is ready.
     public static boolean GetQrDataAvailable() {
         return qrDecodedDataIsReady;
     }
 
-    // Method by which another class can tell this activity to close.
-    //public static void ActivityStop(AppCompatActivity sync) {
+    // Flag setter by which another class can tell this activity to close.
     public static void ActivityStop() {
         Log.d("WM","SyncActivity::ActivityStop, setting flag to stop");
         shouldStopNow = true;
@@ -81,17 +82,25 @@ public class SyncActivity extends AppCompatActivity implements
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.d("WM","SyncActivity::onCreate, starting");
+        Log.d("WM","SyncActivity::onCreate, starting, shouldStopNow = " + shouldStopNow);
+        Log.d("WM","                                  qrDecodedDataIsReady = " + qrDecodedDataIsReady);
+
+        if (shouldStopNow == true) {
+            Log.d("WM","SyncActivity::onCreate, shouldStopNow=true so close screen and abort");
+            finish();
+        }
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sync);
         getSupportActionBar().setTitle(R.string.sync_title);
-        //startSyncServer();  // WM, see comment near TOF regarding SyncServer
         progressView = (TextView) findViewById(R.id.progress);
         continueButton = (Button) findViewById(R.id.continue_button);
         preview = (SurfaceView) findViewById(R.id.surface_view);
         preview.setVisibility(View.INVISIBLE);
         continueButton.setEnabled(false);
         final SyncActivity thisActivity = this;
+
+        // TODO: WM, we never get into here. Can this method be removed?
         continueButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -99,14 +108,9 @@ public class SyncActivity extends AppCompatActivity implements
                 thisActivity.finish();
             }
         });
+
         Log.d("WM","SyncActivity::onCreate, done");
     }
-
-    // WM, see comment near TOF regarding SyncServer
-    //private void startSyncServer() {
-    //    Intent serviceIntent = new Intent(this, SyncService.class);
-    //    startService(serviceIntent);
-    //}
 
     @Override
     protected void onResume() {
@@ -150,7 +154,6 @@ public class SyncActivity extends AppCompatActivity implements
                 barcodeDetector = new BarcodeDetector.Builder(SyncActivity.this)
                         .setBarcodeFormats(Barcode.QR_CODE)
                         .build();
-                Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, build done");
 
                 if (cameraSource != null) {
                     //cameraSource.stop();
@@ -173,9 +176,9 @@ public class SyncActivity extends AppCompatActivity implements
 
                     @Override
                     public void receiveDetections(Detector.Detections<Barcode> detections) {
+                        Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, receiveDetections starting");
                         final SparseArray<Barcode> barcodes = detections.getDetectedItems();
                         if (scanning && barcodes.size() != 0) {
-                            //String contents = barcodes.valueAt(0).displayValue;
                             qrDecodedData = barcodes.valueAt(0).displayValue;
                             Log.d("WM","SyncActivity::onCreateOptionsMenu,");
                             Log.d("WM","   barcodes.size() = " + barcodes.size());
@@ -208,31 +211,39 @@ public class SyncActivity extends AppCompatActivity implements
                                                       cameraSource.release();
                                                       cameraSource = null;
 
-                                                      // TODO: is this a feasible/safe place to take down the screen,
-                                                      //       so we can get back to the Wi-Fi screen?
-                                                      //SyncActivity thisActivity = this;
+                                                      // We need to close this screen and return to the Wi-Fi screen. We can do
+                                                      // that *after* our QR data has been received and processed. Until then, spin
+                                                      // in a slow polling loop waiting for permission to shut down.
                                                       while (shouldStopNow == false) {
-                                                          // Spin here waiting for permission to shut down.
+                                                          Log.d("WM", "SyncActivity::onCreateOptionsMenu, waiting for permission to close");
                                                           try {
-                                                              Log.d("WM", "SyncActivity::onCreateOptionsMenu, waiting for permission to close");
                                                               Thread.sleep(1000);
                                                           } catch (InterruptedException e) {
                                                               e.printStackTrace();
                                                           }
                                                       }
+                                                      // Our work is done here. Reset QR data buffer (so duplicate book requests
+                                                      // don't get made) and flags, and close the screen.
                                                       Log.d("WM","SyncActivity::onCreateOptionsMenu, permission granted, closing");
+                                                      qrDecodedData = null;
+                                                      qrDecodedDataIsReady = false;
+                                                      //shouldStopNow = false;
                                                       finish();
                                                   }
                                               });
-
                             } else {
                                 Log.d("WM","SyncActivity::onCreateOptionsMenu, null contents");
                             }
+                        } else {
+                            //Log.d("WM","SyncActivity::onCreateOptionsMenu, no data to decode");
                         }
                     }
                 });
 
+                Log.d("WM","SyncActivity::onCreateOptionsMenu, exited barcodeDetector.setProcessor");
+
                 if (ActivityCompat.checkSelfPermission(SyncActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("WM","SyncActivity::onCreateOptionsMenu, PackageManager 01");
                     try {
                         scanning = true;
                         preview.setVisibility(View.VISIBLE);
@@ -241,17 +252,17 @@ public class SyncActivity extends AppCompatActivity implements
                         e.printStackTrace();
                     }
                 } else {
+                    Log.d("WM","SyncActivity::onCreateOptionsMenu, PackageManager 02");
                     ActivityCompat.requestPermissions(SyncActivity.this, new
                             String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
                 }
             }
         });
-        // WM -- Reader already handles communication back to Desktop (TCP mechanism), so displaying
-        //       our IP address to the user (next 4 lines) is optional.
-        Log.d("WM","SyncActivity::onCreateOptionsMenu, display Android's IP address");
-        String ourIpAddress = getOurIpAddress();
-        TextView ourIpView = (TextView) findViewById(R.id.our_ip_address);
-        ourIpView.setText(ourIpAddress);
+        // WM -- Reader already handles communication back to Desktop (TCP mechanism), so
+        //       displaying our IP address to the user (next 3 lines) is optional.
+        //String ourIpAddress = getOurIpAddress();
+        //TextView ourIpView = (TextView) findViewById(R.id.our_ip_address);
+        //ourIpView.setText(ourIpAddress);
         AcceptNotificationHandler.addNotificationListener(this);
         Log.d("WM","SyncActivity::onCreateOptionsMenu, done, returning");
         return true;
@@ -264,10 +275,11 @@ public class SyncActivity extends AppCompatActivity implements
             String permissions[],
             int[] grantResults) {
         Log.d("WM","SyncActivity::onRequestPermissionsResult, request " + requestCode);
-        // WM -- very first time I ran this the program crashed after the line above. A popup said
-        // that calling the superclass' version of this should also be done, so I added it (next
-        // line). When I ran it there was no crash, but now when I comment it out there ALSO is no
-        // crash. So I don't really know yet what's going on...
+        // TODO, WM -- determine whether the next line super.onRequestPermissionsResult() is needed.
+        //       The first time I ran this the program crashed after the line above. A popup said
+        //       to also call the superclass' version of this, so I added it (next line). When I
+        //       ran it there was no crash, but now when I comment it out there ALSO is no crash.
+        //       So I don't really know yet what's going on...
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         Log.d("WM","SyncActivity::onRequestPermissionsResult, did super call");
         switch (requestCode) {
@@ -289,37 +301,6 @@ public class SyncActivity extends AppCompatActivity implements
                     Log.d("WM","SyncActivity::onRequestPermissionsResult, grantResults.length = " + grantResults.length);
                 }
         }
-    }
-
-    // Get the IP address of this device (on the WiFi network) to transmit to the desktop.
-    //
-    // WM -- Reader already handles this communication back to Desktop so remove this function
-    //       when I understand how to safely excise things from the menu.
-    private String getOurIpAddress() {
-        Log.d("WM","SyncActivity::getOurIpAddress, starting");
-        String ip = "";
-        try {
-            Enumeration<NetworkInterface> enumNetworkInterfaces = NetworkInterface.getNetworkInterfaces();
-            while (enumNetworkInterfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = enumNetworkInterfaces.nextElement();
-                Enumeration<InetAddress> enumInetAddress = networkInterface.getInetAddresses();
-                while (enumInetAddress.hasMoreElements()) {
-                    InetAddress inetAddress = enumInetAddress.nextElement();
-
-                    if (inetAddress.isSiteLocalAddress()) {
-                        Log.d("WM","SyncActivity::getOurIpAddress, returning ok: " + inetAddress.getHostAddress());
-                        return inetAddress.getHostAddress();
-                    }
-                }
-            }
-        } catch (SocketException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            ip += "Something Wrong! " + e.toString() + "\n";
-        }
-
-        Log.d("WM","SyncActivity::getOurIpAddress, returning BAD: " + ip);
-        return ip;
     }
 
     @Override
@@ -365,27 +346,8 @@ public class SyncActivity extends AppCompatActivity implements
     Date lastProgress = new Date();
     boolean stopUpdatingProgress = false;
 
-    // WM -- NewBookListenerService has a same-name version of this function, which is used for
-    //       Wi-Fi book transfer.
-    //
-    //@Override
-    //public void receivingFile(final String name) {
-    //    // To prevent excess flicker and wasting compute time on progress reports,
-    //    // only change once per second.
-    //    if (new Date().getTime() - lastProgress.getTime() < 1000)
-    //        return;
-    //    lastProgress = new Date();
-    //    setProgress("receiving " + name);
-    //}
-
-    // WM -- NewBookListenerService has a same-name version of this function, which is used for
-    //       Wi-Fi book transfer.
-    //
-    //@Override
-    //public void receivedFile(String name, boolean success) { }
-
-    // WM -- I don't think we should need this function. Reader already handles file
-    //       transfer with Desktop. If I do remove this must also remove its caller in
+    // TODO, WM -- can we remove this function? Reader already handles file transfer
+    //       transfer with Desktop. If we do remove this must also remove its caller in
     //       the file from HTA RequestFileHandler.java -- and maybe that entire file?
     @Override
     public void sendingFile(final String name) {
@@ -394,30 +356,4 @@ public class SyncActivity extends AppCompatActivity implements
         lastProgress = new Date();
         setProgress("sending " + name);
     }
-
-    // WM -- we don't need this because BloomReader already handles communication
-    //       with BloomDesktop via a TCP mechanism.
-    //
-    // This class is responsible to send one message packet to the IP address we
-    // obtained from the desktop, containing the Android's own IP address.
-    //private class SendMessage extends AsyncTask<Void, Void, Void> {
-    //
-    //    public String ourIpAddress;
-    //    @Override
-    //    protected Void doInBackground(Void... params) {
-    //        try {
-    //            String ipAddress = ipView.getText().toString();
-    //            InetAddress receiverAddress = InetAddress.getByName(ipAddress);
-    //            DatagramSocket socket = new DatagramSocket();
-    //            byte[] buffer = ourIpAddress.getBytes("UTF-8");
-    //            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPort);
-    //            socket.send(packet);
-    //        } catch (UnknownHostException e) {
-    //            e.printStackTrace();
-    //        } catch (IOException e) {
-    //            e.printStackTrace();
-    //        }
-    //        return null;
-    //    }
-    //}
 }
