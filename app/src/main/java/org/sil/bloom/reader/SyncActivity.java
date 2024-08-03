@@ -2,9 +2,7 @@ package org.sil.bloom.reader;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.AsyncTask;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -25,18 +23,10 @@ import com.google.android.gms.vision.barcode.Barcode;
 import com.google.android.gms.vision.barcode.BarcodeDetector;
 
 import java.io.IOException;
-import java.net.DatagramPacket;  // WM, can remove?
-import java.net.DatagramSocket;  // WM, can remove?
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;  // WM, can remove?
 import java.util.Date;
-import java.util.Enumeration;
 
 //import org.sil.bloom.reader.R;  // WM, added
 import org.sil.bloom.reader.wifi.AcceptNotificationHandler;
-import org.sil.bloom.reader.wifi.AcceptFileHandler;
 import org.sil.bloom.reader.wifi.RequestFileHandler;
 
 // WM -- This is an edited version of SyncActivity.java in HearThisAndroid.

@@ -116,8 +116,9 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
 
-        //boolean willIgnore = false;
-        boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
+        boolean willIgnore = false;
+        //boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
+
         if (gettingBook) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
             willIgnore = true;
@@ -136,6 +137,11 @@ public class NewBookListenerService extends Service {
             Log.d("WM", "listenUDP: calling processBookAdvert()");  // WM, temporary
             advertProcessedOk = processBookAdvert(pktString, pktSenderIP);
         }
+
+        // We have the book so don't let QR-listener start. That could lead to
+        // unnecessary confusion.
+        Log.d("WM", "listenUDP: we got the book, set shouldRestartQRListen=false");
+        shouldRestartQRListen = false;
 
         Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", close up and return");  // WM, temporary
         multicastLock.release();
@@ -209,12 +215,10 @@ public class NewBookListenerService extends Service {
         Thread.sleep(numSecondsBeforeStartQrListener * 1000);
 
         Log.d("WM","listenQR: wake up, see if UDP-listener got anything");
-        // TODO: improve this check so it won't take a partial or corrupted UDP advert string.
-        if (udpPktLen > 0) {
-            Log.d("WM","listenQR: it did (" + udpPktLen + " bytes), so bail");
+        if ((udpPktLen > 0) || (shouldRestartQRListen == false)) {
+            Log.d("WM","listenQR: it did, so bail");
             return;
         }
-
         Log.d("WM","listenQR: it didn't, so enable QR scanning");
 
         Intent qrScan = new Intent(this, SyncActivity.class);
@@ -258,6 +262,8 @@ public class NewBookListenerService extends Service {
         // We got the QR data so close its screen and return to the Wi-Fi screen.
         Log.d("WM", "listenQR: advert processed, close scan screen");  // WM, temporary
         SyncActivity.ActivityStop();
+        Log.d("WM", "listenQR: keep listenQR off, set shouldRestartQRListen=false");
+        shouldRestartQRListen = false;
 
         Log.d("WM", "listenQR: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
