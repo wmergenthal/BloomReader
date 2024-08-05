@@ -10,6 +10,8 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+
+import androidx.activity.OnBackPressedCallback;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;  // WM, added
 import android.view.LayoutInflater;  // WM, added
@@ -49,7 +51,14 @@ public class GetFromWiFiActivity extends BaseActivity {
         final Button okButton = (Button)findViewById(R.id.wifiOk);
         okButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                onBackPressed();
+                handleDialogClosed();
+            }
+        });
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                handleDialogClosed();
             }
         });
 
@@ -178,8 +187,7 @@ public class GetFromWiFiActivity extends BaseActivity {
         super.onDestroy();
     }
 
-    @Override
-    public void onBackPressed() {
+    public void handleDialogClosed() {
         // inform the main activity of the books we added.
         Intent result = new Intent();
         result.putExtra(MainActivity.NEW_BOOKS, newBookPaths.toArray(new String[0]));
