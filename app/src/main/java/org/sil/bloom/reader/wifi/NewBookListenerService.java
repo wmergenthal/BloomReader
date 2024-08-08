@@ -425,8 +425,10 @@ public class NewBookListenerService extends Service {
     }
 
     private void startSyncServer() {
-        if (httpServiceRunning)
+        if (httpServiceRunning) {
+            Log.d("WM","startSyncServer: already running, bail");
             return;
+        }
         Intent serviceIntent = new Intent(this, SyncService.class);
         Log.d("WM","startSyncServer: calling startService()");
         startService(serviceIntent);
@@ -434,8 +436,10 @@ public class NewBookListenerService extends Service {
     }
 
     private void stopSyncServer() {
-        if (!httpServiceRunning)
+        if (!httpServiceRunning) {
+            Log.d("WM","stopSyncServer: already stopped, bail");
             return;
+        }
         Intent serviceIntent = new Intent(this, SyncService.class);
         Log.d("WM","stopSyncServer: calling stopService()");
         stopService(serviceIntent);
