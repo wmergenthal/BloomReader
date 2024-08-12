@@ -1,9 +1,7 @@
 package org.sil.bloom.reader.wifi;
 
-import android.app.AlertDialog;  // WM, added
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;  // WM, added
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.NetworkInfo;
@@ -13,17 +11,12 @@ import android.os.Bundle;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import android.util.Log;  // WM, added
-import android.view.LayoutInflater;  // WM, added
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;  // WM, added
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;  // WM, added
 
 import org.sil.bloom.reader.BaseActivity;
-import org.sil.bloom.reader.BloomReaderApplication;  // WM, added
 import org.sil.bloom.reader.MainActivity;
 import org.sil.bloom.reader.R;
 
@@ -61,123 +54,6 @@ public class GetFromWiFiActivity extends BaseActivity {
                 handleDialogClosed();
             }
         });
-
-        if (BloomReaderApplication.qrCodeUsedInsteadOfAdvert) {
-            // WM, EXPERIMENT
-            // As commented in onNavigationItemSelected(), we add a text box to the Wi-Fi book share
-            // screen for the user to enter data normally provided by Desktop's UDP advertisement:
-            //    Desktop IP address, book title, book version
-            // This is a proof of concept to verify that these data items *can* be provided by an
-            // alternative such as QR code.
-
-            // Create dialog box layout and the dialog itself.
-            LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-            View dialogView = inflater.inflate(R.layout.activity_enter_desktop_ip_address, null);
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
-            // Set the dialog box title and message.
-            builder.setTitle("QR code alternative - text entry");
-            builder.setMessage("Enter as follows: Desktop IP address, semicolon, book title, semicolon, book version (from Android Studio log):");
-
-            // Create EditText view for user to enter text, then make that the dialog box's view.
-            EditText userInput = new EditText(this);
-            builder.setView(userInput);
-
-            // Get user input and evaluate. Use it if valid, otherwise ignore it.
-            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    // Get what the user entered.
-                    String inputText = userInput.getText().toString();
-                    BloomReaderApplication.setQrInputReceived(true);
-
-                    // User input should contain 3 elements delimited with semicolons, like this:
-                    // Desktop's IP address, then ';', then book title, then ';', then book version
-                    //   - Parse these things out
-                    //   - Verify the number of elements is as expected; if not then put up an error
-                    //     message instructing the user to try again
-                    //   - Sanity check the elements; ignore them if something is wrong
-                    String delims = ";";
-                    String[] tokens = inputText.split(delims);
-                    int numElements = tokens.length;
-                    if (numElements != 3) {
-                        BloomReaderApplication.setQrInputIsValid(false);
-                        Toast.makeText(getApplicationContext(), "You provided " + numElements +
-                                " elements, 3 are required. Try again.", Toast.LENGTH_LONG).show();
-                        Log.d("WM", "onClick: got " + numElements + " but 3 are required, bail");
-                        Log.d("WM", "onClick: QR data valid == " + BloomReaderApplication.getQrInputIsValid());
-                        return;
-                    }
-
-                    Log.d("WM", "onClick: ipAddr  = " + tokens[0]);
-                    Log.d("WM", "         title   = " + tokens[1]);
-                    Log.d("WM", "         version = " + tokens[2]);
-
-                    // IP address: check for valid IPv4 format
-                    // Book title: check that it is not empty
-                    // Book version: check that it is not empty
-                    if (validateIPv4(tokens[0]) && (tokens[1].length() > 0) && (tokens[2].length() > 0)) {
-                        BloomReaderApplication.setQrInputIsValid(true);
-                        Log.d("WM", "onClick: QR input is okay");
-                        Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                                "\nLooks good, we\'ll take it", Toast.LENGTH_LONG).show();
-                        // Make user input available to the book-receive subsystem.
-                        BloomReaderApplication.setDesktopIpAddrInQrCode(tokens[0]);
-                        BloomReaderApplication.setBookTitleInQrCode(tokens[1]);
-                        BloomReaderApplication.setBookVersionInQrCode(tokens[2]);
-                    } else {
-                        BloomReaderApplication.setQrInputIsValid(false);
-                        Log.d("WM", "onClick: QR input is NOT okay");
-                        Toast.makeText(getApplicationContext(), "You entered: " + inputText +
-                                "\nThis is not entirely correct. Try again.", Toast.LENGTH_LONG).show();
-                    }
-                }
-            });
-
-            // Dialog composition complete. Render it.
-            builder.show();
-
-            // WM, END EXPERIMENT
-        }
-    }
-
-    // Check whether the passed in string has a valid IPv4 format. If it does then return true,
-    // otherwise return false. Make it public static so other code can use it.
-    // Based on code from:
-    // https://stackoverflow.com/questions/4581877/validating-ipv4-string-in-java?rq=4
-    public static boolean validateIPv4(String ip) {
-        try {
-            if (ip == null || ip.isEmpty()) {
-                Log.d("WM","validateIPv4: " + ip + ", error, is null or empty");
-                return false;
-            }
-
-            String[] parts = ip.split("\\.");
-            if (parts.length != 4) {
-                Log.d("WM","validateIPv4: " + ip + ", error, not 4 sections");
-                return false;
-            }
-
-            for (String s : parts) {
-                int i = Integer.parseInt(s);
-                if ((i < 0) || (i > 255)) {
-                    Log.d("WM","validateIPv4: " + ip + ", error, not 0 - 255");
-                    return false;
-                }
-            }
-
-            if (ip.endsWith(".")) {
-                Log.d("WM","validateIPv4: " + ip + ", error, ends with a dot");
-                return false;
-            }
-
-            Log.d("WM","validateIPv4: " + ip + ", format ok");
-            return true;
-
-        } catch (NumberFormatException nfe) {
-            Log.e("WM","GetFromWiFiActivity::validateIPv4, exception: " + nfe);
-            return false;
-        }
     }
 
     @Override

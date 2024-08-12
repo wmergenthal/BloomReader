@@ -1,12 +1,6 @@
 package org.sil.bloom.reader.wifi;
 
-import android.content.Context;
-//import org.apache.http.HttpException;
-//import org.apache.http.HttpRequest;
-//import org.apache.http.HttpResponse;
-//import org.apache.http.entity.StringEntity;
-//import org.apache.http.protocol.HttpContext;
-//import org.apache.http.protocol.HttpRequestHandler;
+//import android.content.Context;
 import cz.msebera.android.httpclient.HttpException;
 import cz.msebera.android.httpclient.HttpRequest;
 import cz.msebera.android.httpclient.HttpResponse;

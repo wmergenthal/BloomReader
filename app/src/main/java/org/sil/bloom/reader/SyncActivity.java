@@ -25,9 +25,8 @@ import com.google.android.gms.vision.barcode.BarcodeDetector;
 import java.io.IOException;
 import java.util.Date;
 
-//import org.sil.bloom.reader.R;  // WM, added
 import org.sil.bloom.reader.wifi.AcceptNotificationHandler;
-import org.sil.bloom.reader.wifi.RequestFileHandler;
+//import org.sil.bloom.reader.wifi.RequestFileHandler;
 
 // WM -- This is an edited version of SyncActivity.java in HearThisAndroid.
 //       I am removing everything having to do with SyncServer since BloomReader
@@ -36,9 +35,9 @@ import org.sil.bloom.reader.wifi.RequestFileHandler;
 //       reason: BloomReader already handles those.
 
 public class SyncActivity extends AppCompatActivity implements
-        AcceptNotificationHandler.NotificationListener,
+        AcceptNotificationHandler.NotificationListener {
         //AcceptFileHandler.IFileReceivedNotification,  // WM, BloomReader already implements
-        RequestFileHandler.IFileSentNotification {
+        //RequestFileHandler.IFileSentNotification {    // WM, file I/O not needed
 
     Button scanBtn;
     Button continueButton;
@@ -107,12 +106,6 @@ public class SyncActivity extends AppCompatActivity implements
         Log.d("WM","SyncActivity::onResume, calling super.onResume() ");
         super.onResume();
         Log.d("WM","SyncActivity::onResume, did super.onResume(), returning");
-        // WM -- the next line is incompatible with requestFileReceivedNotification()
-        //       which already exists in AcceptFileHandler.java and is used by Reader.
-        //       But actually we don't need either of the next two lines since, unlike
-        //       in HTA, this class doesn't need to do file transfers.
-        //AcceptFileHandler.requestFileReceivedNotification(this);
-        //RequestFileHandler.requestFileSentNotification((this));
     }
 
     @Override
@@ -339,11 +332,11 @@ public class SyncActivity extends AppCompatActivity implements
     // TODO, WM -- can we remove this function? Reader already handles file transfer
     //       transfer with Desktop. If we do remove this must also remove its caller in
     //       the file from HTA RequestFileHandler.java -- and maybe that entire file?
-    @Override
-    public void sendingFile(final String name) {
-        if (new Date().getTime() - lastProgress.getTime() < 1000)
-            return;
-        lastProgress = new Date();
-        setProgress("sending " + name);
-    }
+    //@Override
+    //public void sendingFile(final String name) {
+    //    if (new Date().getTime() - lastProgress.getTime() < 1000)
+    //        return;
+    //    lastProgress = new Date();
+    //    setProgress("sending " + name);
+    //}
 }
