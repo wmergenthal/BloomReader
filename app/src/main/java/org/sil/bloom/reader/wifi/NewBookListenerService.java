@@ -116,8 +116,8 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
 
-        boolean willIgnore = false;
-        //boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
+        //boolean willIgnore = false;
+        boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
 
         if (gettingBook) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
@@ -136,12 +136,22 @@ public class NewBookListenerService extends Service {
             String pktSenderIP = new String(packet.getAddress().getHostAddress());
             Log.d("WM", "listenUDP: calling processBookAdvert()");  // WM, temporary
             advertProcessedOk = processBookAdvert(pktString, pktSenderIP);
+
+            if (advertProcessedOk) {
+                // We requested the book. We expect to receive it shortly, but even if it
+                // doesn't arrive don't let QR-listener start. That could lead to confusion.
+                Log.d("WM", "listenUDP: book requested ok, set shouldRestartQRListen=false");
+                shouldRestartQRListen = false;
+            } else {
+                Log.d("WM", "listenUDP: book request FAILED, keep shouldRestartQRListen=true");
+                shouldRestartQRListen = true;
+            }
         }
 
         // We have the book so don't let QR-listener start. That could lead to
         // unnecessary confusion.
-        Log.d("WM", "listenUDP: we got the book, set shouldRestartQRListen=false");
-        shouldRestartQRListen = false;
+        //Log.d("WM", "listenUDP: we got the book, set shouldRestartQRListen=false");
+        //shouldRestartQRListen = false;
 
         Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", close up and return");  // WM, temporary
         multicastLock.release();
@@ -216,7 +226,7 @@ public class NewBookListenerService extends Service {
 
         Log.d("WM","listenQR: wake up, see if UDP-listener got anything");
         if ((udpPktLen > 0) || (shouldRestartQRListen == false)) {
-            Log.d("WM","listenQR: it did, so bail");
+            Log.d("WM","listenQR: it did (udpPktLen=" + udpPktLen + "), so bail");
             return;
         }
         Log.d("WM","listenQR: it didn't, so enable QR scanning");
@@ -226,9 +236,14 @@ public class NewBookListenerService extends Service {
             Log.d("WM","listenQR: qrScan == null, bail");
             return;
         }
+        Log.d("WM","listenQR: add FLAG_ACTIVITY_NEW_TASK");
+        qrScan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Log.d("WM","listenQR: calling startActivity(qrScan)");
         startActivity(qrScan);
-        Log.d("WM","listenQR: startActivity(qrScan) returned");
+        Log.d("WM","listenQR: startActivity(qrScan) returned, begin awaiting QR data");
+        //Log.d("WM","listenQR: calling RequestTurnOnSyncActivity()");
+        //MainActivity.RequestTurnOnSyncActivity(this);
+        //Log.d("WM","listenQR: RequestTurnOnSyncActivity() returned");
 
         // Wait (up to the specified max seconds) for a decoded QR scan to be available.
         // It is an advert identical to what would have also been UDP-broadcast. When it

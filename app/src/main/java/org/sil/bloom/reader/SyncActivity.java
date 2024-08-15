@@ -316,7 +316,8 @@ public class SyncActivity extends AppCompatActivity implements
         });
     }
 
-    // WM -- can this be removed? Reader shows progress, seems we need not also do it here...
+    // WM -- can this be removed? Reader shows progress, seems we need not also do it here.
+    //       If we do remove this then also remove the call in onNotification().
     void setProgress(final String text) {
         Log.d("WM","SyncActivity::setProgress, remove?");
         runOnUiThread(new Runnable() {
@@ -326,12 +327,12 @@ public class SyncActivity extends AppCompatActivity implements
         });
     }
 
-    Date lastProgress = new Date();
-    boolean stopUpdatingProgress = false;
+    //Date lastProgress = new Date();
+    //boolean stopUpdatingProgress = false;
 
-    // TODO, WM -- can we remove this function? Reader already handles file transfer
-    //       transfer with Desktop. If we do remove this must also remove its caller in
-    //       the file from HTA RequestFileHandler.java -- and maybe that entire file?
+    // WM -- can we remove this function? BloomReader already handles file transfer
+    // transfer with Desktop. If we do remove this must also remove its caller in
+    // the file from HTA RequestFileHandler.java (actually, removed that entire file).
     //@Override
     //public void sendingFile(final String name) {
     //    if (new Date().getTime() - lastProgress.getTime() < 1000)
