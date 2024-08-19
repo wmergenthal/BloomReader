@@ -23,10 +23,8 @@ import com.google.android.gms.vision.barcode.Barcode;
 import com.google.android.gms.vision.barcode.BarcodeDetector;
 
 import java.io.IOException;
-import java.util.Date;
 
 import org.sil.bloom.reader.wifi.AcceptNotificationHandler;
-//import org.sil.bloom.reader.wifi.RequestFileHandler;
 
 // WM -- This is an edited version of SyncActivity.java in HearThisAndroid.
 //       I am removing everything having to do with SyncServer since BloomReader
@@ -159,7 +157,7 @@ public class SyncActivity extends AppCompatActivity implements
 
                     @Override
                     public void receiveDetections(Detector.Detections<Barcode> detections) {
-                        Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, receiveDetections starting");
+                        //Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, receiveDetections starting"); // generates much output
                         final SparseArray<Barcode> barcodes = detections.getDetectedItems();
                         if (scanning && barcodes.size() != 0) {
                             qrDecodedData = barcodes.valueAt(0).displayValue;
@@ -326,18 +324,4 @@ public class SyncActivity extends AppCompatActivity implements
             }
         });
     }
-
-    //Date lastProgress = new Date();
-    //boolean stopUpdatingProgress = false;
-
-    // WM -- can we remove this function? BloomReader already handles file transfer
-    // transfer with Desktop. If we do remove this must also remove its caller in
-    // the file from HTA RequestFileHandler.java (actually, removed that entire file).
-    //@Override
-    //public void sendingFile(final String name) {
-    //    if (new Date().getTime() - lastProgress.getTime() < 1000)
-    //        return;
-    //    lastProgress = new Date();
-    //    setProgress("sending " + name);
-    //}
 }

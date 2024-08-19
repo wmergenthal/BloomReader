@@ -116,8 +116,8 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
 
-        //boolean willIgnore = false;
-        boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
+        boolean willIgnore = false;
+        //boolean willIgnore = true;  // WM, **** temporary to enable testing QR scan logic ****
 
         if (gettingBook) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
@@ -147,11 +147,6 @@ public class NewBookListenerService extends Service {
                 shouldRestartQRListen = true;
             }
         }
-
-        // We have the book so don't let QR-listener start. That could lead to
-        // unnecessary confusion.
-        //Log.d("WM", "listenUDP: we got the book, set shouldRestartQRListen=false");
-        //shouldRestartQRListen = false;
 
         Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", close up and return");  // WM, temporary
         multicastLock.release();
@@ -236,14 +231,12 @@ public class NewBookListenerService extends Service {
             Log.d("WM","listenQR: qrScan == null, bail");
             return;
         }
-        Log.d("WM","listenQR: add FLAG_ACTIVITY_NEW_TASK");
+        // Samsung Galaxy-Tab-A tablet (Android SDK level 34) works with or without this
+        // flag, but BQ Aquaris M10 FHD tablet (Android SDK level 33) needs it. Not sure why.
         qrScan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Log.d("WM","listenQR: calling startActivity(qrScan)");
         startActivity(qrScan);
         Log.d("WM","listenQR: startActivity(qrScan) returned, begin awaiting QR data");
-        //Log.d("WM","listenQR: calling RequestTurnOnSyncActivity()");
-        //MainActivity.RequestTurnOnSyncActivity(this);
-        //Log.d("WM","listenQR: RequestTurnOnSyncActivity() returned");
 
         // Wait (up to the specified max seconds) for a decoded QR scan to be available.
         // It is an advert identical to what would have also been UDP-broadcast. When it
@@ -389,7 +382,7 @@ public class NewBookListenerService extends Service {
 
         // This server will be sent the actual book data (and the final notification). Start it now
         // before sending the book request to ensure it's ready if the reply is quick.
-        Log.d("WM","getBookTcp: calling startSyncServer()");
+        Log.d("WM","getBookTcp: calling SyncServer-start");
         startSyncServer();
 
         Socket socketTcp = null;  // ungainly name but avoids possible confusion with UDP "socket"
@@ -441,22 +434,22 @@ public class NewBookListenerService extends Service {
 
     private void startSyncServer() {
         if (httpServiceRunning) {
-            Log.d("WM","startSyncServer: already running, bail");
+            Log.d("WM","SyncServer-start: already running, bail");
             return;
         }
         Intent serviceIntent = new Intent(this, SyncService.class);
-        Log.d("WM","startSyncServer: calling startService()");
+        Log.d("WM","SyncServer-start: calling startService()");
         startService(serviceIntent);
         httpServiceRunning = true;
     }
 
     private void stopSyncServer() {
         if (!httpServiceRunning) {
-            Log.d("WM","stopSyncServer: already stopped, bail");
+            Log.d("WM","SyncServer-stop: already stopped, bail");
             return;
         }
         Intent serviceIntent = new Intent(this, SyncService.class);
-        Log.d("WM","stopSyncServer: calling stopService()");
+        Log.d("WM","SyncServer-stop: calling stopService()");
         stopService(serviceIntent);
         httpServiceRunning = false;
     }
@@ -464,7 +457,7 @@ public class NewBookListenerService extends Service {
     // Called via EndOfTransferListener when desktop sends transfer complete notification.
     private void transferComplete(boolean success) {
         // We can stop listening for file transfers and notifications from the desktop.
-        Log.d("WM","transferComplete: calling stopSyncServer()");
+        Log.d("WM","transferComplete: calling SyncServer-stop");
         stopSyncServer();
         Log.d("WM","transferComplete: clearing \'gettingBook\' flag");
         gettingBook = false;

@@ -58,7 +58,6 @@ import org.json.JSONObject;
 import org.sil.bloom.reader.models.BookCollection;
 import org.sil.bloom.reader.models.BookOrShelf;
 import org.sil.bloom.reader.wifi.GetFromWiFiActivity;
-//import org.sil.bloom.reader.wifi.NewBookListenerService;
 
 import java.io.File;
 import java.util.Arrays;
@@ -1422,24 +1421,6 @@ public class MainActivity extends BaseActivity
     public void requestTurnOnGps() {
         startActivity(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
     }
-
-    // Enable the camera and QR code scanning subsystem.
-    //
-    // Ah, adding 'FLAG_ACTIVITY_NEW_TASK' allows this activity to now start. We can go back
-    // to the simpler technique of starting qrScan from NewBookListenerService.listenQR, as
-    // long as the extra flag is added. Note, however, that there is still a crash to fix,
-    // caused by a null object reference somewhere in the camera start code.
-    //public static void RequestTurnOnSyncActivity(NewBookListenerService parent) {
-    //    Intent qrScan = new Intent(parent, SyncActivity.class);
-    //    if (qrScan == null) {
-    //        Log.d("WM","RequestTurnOnSyncActivity, qrScan == null, bail");
-    //        return;
-    //    }
-    //    qrScan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-    //    Log.d("WM","RequestTurnOnSyncActivity, calling startActivity(qrScan)");
-    //    parent.startActivity(qrScan);
-    //    Log.d("WM","RequestTurnOnSyncActivity, startActivity(qrScan) returned, begin awaiting QR data");
-    //}
 
     private void DisplaySimpleResource(String title, int fileResourceId) {
         // Linkify the message
