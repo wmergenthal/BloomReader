@@ -343,7 +343,11 @@ public class NewBookListenerService extends Service {
 
         @Override
         public void receivedFile(String name, boolean success) {
-            Log.d("WM","receivedFile: calling transferComplete()");
+            if (success == true) {
+                Log.d("WM", "receivedFile: calling transferComplete(), OKAY");
+            } else {
+                Log.d("WM", "receivedFile: calling transferComplete(), FAIL");
+            }
             _parent.transferComplete(success);
             if (success) {
                 // We won't announce subsequent up-to-date advertisements for this book.
