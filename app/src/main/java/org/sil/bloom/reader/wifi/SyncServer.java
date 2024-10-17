@@ -88,6 +88,12 @@ public class SyncServer extends Thread {
                 try {
                     final Socket socket = serverSocket.accept();
 
+                    // Set timeout (in milliseconds) on the socket. This makes it unnecessary for
+                    // upstream code to use a future + executor, which adds an extra thread.
+                    // The future + executor approach used a 1-sec timeout so use that here too; I
+                    // admit I don't know whether it is the optimal value.
+                    socket.setSoTimeout(1000);
+
                     // Constructor requires a buffer size. I found ONE example at
                     // http://www.programcreek.com/java-api-examples/index.php?api=org.apache.http.impl.DefaultBHttpServerConnection
                     // but otherwise no hint anywhere of what the buffer is for or what size might be reasonable.
