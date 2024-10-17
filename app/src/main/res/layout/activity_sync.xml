@@ -48,6 +48,12 @@
         android:layout_centerHorizontal="true"
         android:layout_below = "@+id/progress"
         android:text="@string/continue_button_caption" />
+    <Button android:id="@+id/cancel_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_below = "@+id/continue_button"
+        android:text="Cancel" />
     <SurfaceView
         android:id="@+id/surface_view"
         android:layout_width="match_parent"

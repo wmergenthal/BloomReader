@@ -39,6 +39,7 @@ public class SyncActivity extends AppCompatActivity implements
 
     Button scanBtn;
     Button continueButton;
+    Button cancelButton;  // WM, likely temporary
     TextView ipView;
     SurfaceView preview;
     private static final int REQUEST_CAMERA_PERMISSION = 201;
@@ -61,9 +62,14 @@ public class SyncActivity extends AppCompatActivity implements
         return qrDecodedDataIsReady;
     }
 
-    // Flag setter by which another class can tell this activity to close.
+    // Flag setter by which another class can ask this activity to close.
+    // Note: I really want do do an immediate stop, killing the Scan screen as can
+    //       be done with   this.finish()
+    //                 or   SyncActivity.finish()
+    //       Those only work in a non-static function, but this function must be
+    //       static to be callable from NewBookListenerService. Argghhh...
     public static void ActivityStop() {
-        Log.d("WM","SyncActivity::ActivityStop, setting flag to stop");
+        Log.d("WM","SyncActivity::ActivityStop, setting \'shouldStopNow\'");
         shouldStopNow = true;
     }
 
@@ -72,10 +78,11 @@ public class SyncActivity extends AppCompatActivity implements
         Log.d("WM","SyncActivity::onCreate, starting, shouldStopNow = " + shouldStopNow);
         Log.d("WM","                                  qrDecodedDataIsReady = " + qrDecodedDataIsReady);
 
-        if (shouldStopNow == true) {
-            Log.d("WM","SyncActivity::onCreate, shouldStopNow=true so close screen and abort");
-            finish();
-        }
+        // TODO: WM, we never get into here. Remove?
+        //if (shouldStopNow == true) {
+        //    Log.d("WM","SyncActivity::onCreate, shouldStopNow=true so close screen and abort");
+        //    finish();
+        //}
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sync);
@@ -87,12 +94,23 @@ public class SyncActivity extends AppCompatActivity implements
         continueButton.setEnabled(false);
         final SyncActivity thisActivity = this;
 
-        // TODO: WM, we never get into here. Can this method be removed?
+        // TODO: WM, we never get into here. Is that a problem?
         continueButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d("WM","SyncActivity::onCreate.continueButton.setOnClickListener.onClick, starting");
+                Log.d("WM","SyncActivity::onCreate.continueButton, calling finish()");
                 thisActivity.finish();
+            }
+        });
+
+        // WM -- a way to enable the Scan screen to be taken down if the user never presses the
+        // Scan button. I imagine the Bloom team will prefer a different way to accomplish that,
+        // so this is likely temporary.
+        cancelButton = (Button) findViewById(R.id.cancel_button);
+        cancelButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Log.d("WM","SyncActivity::onCreate.cancelButton, calling finish()");
+                finish();
             }
         });
 
@@ -101,7 +119,6 @@ public class SyncActivity extends AppCompatActivity implements
 
     @Override
     protected void onResume() {
-        Log.d("WM","SyncActivity::onResume, calling super.onResume() ");
         super.onResume();
         Log.d("WM","SyncActivity::onResume, did super.onResume(), returning");
     }
@@ -152,12 +169,13 @@ public class SyncActivity extends AppCompatActivity implements
 
                     @Override
                     public void release() {
+                        Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick.barcodeDetector.setProcessor, starting"); // WM, temporary
                         // Toast.makeText(getApplicationContext(), "To prevent memory leaks barcode scanner has been stopped", Toast.LENGTH_SHORT).show();
                     }
 
                     @Override
                     public void receiveDetections(Detector.Detections<Barcode> detections) {
-                        //Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, receiveDetections starting"); // generates much output
+                        //Log.d("WM","SyncActivity::onCreateOptionsMenu.onClick, receiveDetections starting"); // generates a ton of output
                         final SparseArray<Barcode> barcodes = detections.getDetectedItems();
                         if (scanning && barcodes.size() != 0) {
                             qrDecodedData = barcodes.valueAt(0).displayValue;
@@ -192,9 +210,10 @@ public class SyncActivity extends AppCompatActivity implements
                                                       cameraSource.release();
                                                       cameraSource = null;
 
-                                                      // We need to close this screen and return to the Wi-Fi screen. We can do
-                                                      // that *after* our QR data has been received and processed. Until then, spin
-                                                      // in a slow polling loop waiting for permission to shut down.
+                                                      // We need to close this screen and return to the Wi-Fi screen.
+                                                      // Do so *after* our QR data has been received and processed. Until
+                                                      // we get notification of that, spin in a slow polling loop waiting for
+                                                      // permission to shut down.
                                                       while (shouldStopNow == false) {
                                                           Log.d("WM", "SyncActivity::onCreateOptionsMenu, waiting for permission to close");
                                                           try {
@@ -209,6 +228,7 @@ public class SyncActivity extends AppCompatActivity implements
                                                       qrDecodedData = null;
                                                       qrDecodedDataIsReady = false;
                                                       //shouldStopNow = false;
+                                                      //shouldStopNow = true; // WM, test this with BD off causing both BR listeners to time out
                                                       finish();
                                                   }
                                               });
@@ -257,7 +277,7 @@ public class SyncActivity extends AppCompatActivity implements
             int[] grantResults) {
         Log.d("WM","SyncActivity::onRequestPermissionsResult, request " + requestCode);
         // TODO, WM -- determine whether the next line super.onRequestPermissionsResult() is needed.
-        //       The first time I ran this the program crashed after the line above. A popup said
+        //       The first time I ran this the app crashed after the line above. A popup said
         //       to also call the superclass' version of this, so I added it (next line). When I
         //       ran it there was no crash, but now when I comment it out there ALSO is no crash.
         //       So I don't really know yet what's going on...
@@ -314,8 +334,8 @@ public class SyncActivity extends AppCompatActivity implements
         });
     }
 
-    // WM -- can this be removed? Reader shows progress, seems we need not also do it here.
-    //       If we do remove this then also remove the call in onNotification().
+    // TODO: WM, remove this? Reader shows progress, seems we need not also do it here.
+    //       If we do remove this then also remove the call to it in onNotification().
     void setProgress(final String text) {
         Log.d("WM","SyncActivity::setProgress, remove?");
         runOnUiThread(new Runnable() {
