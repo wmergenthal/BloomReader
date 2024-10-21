@@ -2,7 +2,6 @@ package org.sil.bloom.reader.wifi;
 
 import android.content.Context;
 import android.net.Uri;
-import android.util.Log;
 
 import org.sil.bloom.reader.R;
 import org.sil.bloom.reader.models.BookCollection;
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeoutException;
  */
 public class AcceptFileHandler implements HttpRequestHandler {
     Context _parent;
-    private int bytesReadTotal = 0;
     public AcceptFileHandler(Context parent)
     {
         _parent = parent;
@@ -47,12 +45,8 @@ public class AcceptFileHandler implements HttpRequestHandler {
         Uri uri = Uri.parse(request.getRequestLine().getUri());
         String filePath = uri.getQueryParameter("path");
 
-        if (listener != null) {
-            Log.d("WM", "AcceptFileHandler: receiving on path = " + filePath);
+        if (listener != null)
             listener.receivingFile(filePath);
-        } else {
-            Log.d("WM", "AcceptFileHandler: null listener-A!");
-        }
         String path = baseDir  + "/" + filePath;
         HttpEntity entity = null;
         String result = "failure";
@@ -69,54 +63,63 @@ public class AcceptFileHandler implements HttpRequestHandler {
                 boolean aborted = false;
                 FileOutputStream fs = new FileOutputStream(file);
                 try {
-                    int bytesRead = 0;
-
-                    Log.d("WM", "AcceptFileHandler: begin read");
+                    int bytesRead = 1; // to make first cycle go ahead
+                    // We want to copy the input from WiFi to the output file.
+                    // We'd like to recover if the transmission is interrupted.
+                    // Ideally we'd just put a timeout on the socket that is reading the data,
+                    // but I can't find any way to access it.
+                    // Nor does it work to expect that an interrupted transmission will result
+                    // in a smaller number of bytes being available and successfully reading
+                    // however many there are, even zero. Even though we are only asking the
+                    // stream for (at most) the number of bytes it says are available, the
+                    // read can block forever if the connection is broken suddenly.
+                    // The technique actually used here, with thanks to one of the answers on
+                    // https://stackoverflow.com/questions/804951/is-it-possible-to-read-from-a-inputstream-with-a-timeout,
+                    // runs the read on (yet another) helper thread, forcing a timeout if we don't get some data
+                    // within a second.
+                    ExecutorService executor = Executors.newFixedThreadPool(2);
+                    Callable<Integer> readTask = new Callable<Integer>() {
+                        @Override
+                        public Integer call() throws Exception {
+                            return input.read(buffer, 0, Math.min(input.available(), buffer.length));
+                        }
+                    };
                     while (bytesRead >= 0) {
+                        // This is a trick to get an exception thrown if it takes more than a second to
+                        // read a block of data.
                         try {
-                            // This could block up to the SyncServer-socket-configured timeout (currently 1 sec).
-                            bytesRead = input.read(buffer, 0, Math.min(input.available(), buffer.length));
-                            //Log.d("WM", "AcceptFileHandler, did read, bytesRead = " + bytesRead);
-                        } catch (IOException e) {
-                            Log.d("WM", "AcceptFileHandler: IOException, bytesRead = " + bytesRead);
+                            Future<Integer> future = executor.submit(readTask);
+                            bytesRead = future.get(1000, TimeUnit.MILLISECONDS);
+                        } catch (TimeoutException e) {
+                            // This also blocks. This should be rare, I think we can afford to
+                            // leave the thread stuck.
+                            //input.close(); // should clean up the thread attempting the read
                             aborted = true;
                             break;
                         }
 
                         if (bytesRead > 0) {
                             fs.write(buffer, 0, bytesRead);
-                            bytesReadTotal += bytesRead;  // not critical but might be nice to know
                         }
                     }
-                    Log.d("WM", "AcceptFileHandler: done read, bytesReadTotal = " + bytesReadTotal);
                 } catch (Exception e) {
                     // something unexpected went wrong while writing the output
-                    Log.d("WM", "AcceptFileHandler: exception-A");
                     e.printStackTrace();
                     aborted = true;
                 }
                 fs.close();
                 if (aborted) {
-                    Log.d("WM", "AcceptFileHandler: aborted (probably incomplete), deleting");
                     file.delete(); // incomplete, useless, may cause exceptions trying to unzip.
                 } else {
-                    Log.d("WM", "AcceptFileHandler: success");
                     result = "success"; // normal completion.
                 }
             } catch (Exception e) {
-                Log.d("WM", "AcceptFileHandler: exception-B");
                 e.printStackTrace();
             }
-        } else {
-            Log.d("WM", "AcceptFileHandler: null entity!");
         }
         response.setEntity(new StringEntity(result));
-        if (listener != null) {
-            Log.d("WM", "AcceptFileHandler: valid listener, path = " + path);
+        if (listener != null)
             listener.receivedFile(path, result == "success");
-        } else {
-            Log.d("WM", "AcceptFileHandler: null listener-B!");
-        }
     }
 
     public interface IFileReceivedNotification {
