@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.io.DataOutputStream;  // WM, added
 import java.io.OutputStream;      // WM, added
+import java.net.InetSocketAddress;
 import java.net.Socket;           // WM, added
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;  // WM, added
 import java.util.Enumeration;
@@ -49,7 +51,7 @@ public class NewBookListenerService extends Service {
     DatagramSocket socket;
     Thread UDPListenerThread;   // renamed from UDPBroadcastThread
     Thread QRListenerThread;
-    private boolean shouldRestartSocketListen = true;
+    private boolean shouldStartSocketListen = true;
     private boolean shouldStartQRListen = true;
     private boolean qrScanInProgress = false;
     private boolean advertProcessedOk = false;        // TODO, WM, is this truly helpful? remove it?
@@ -62,6 +64,7 @@ public class NewBookListenerService extends Service {
     static int desktopPortTCP = 5916;
     static int numSecondsUdpTimeout = 15;  // WM, long but Samsung Galaxy Tab A seems to need it
     static int numSecondsQrTimeout = 20;
+    static int numSecondsTcpTimeout = 3;
     static boolean debugPacketPrint = true;
     //static boolean suppressUdpReceive = true;  // WM, testing only
     int udpPktLen;
@@ -131,7 +134,7 @@ public class NewBookListenerService extends Service {
 
             // UDP got nothing. Now give QR listener a turn -- interrupt it.
             // Keep UDP off until QR is done.
-            shouldRestartSocketListen = false;
+            shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting QR-listener thread-A");
             qrScanInProgress = true;
             QRListenerThread.interrupt();
@@ -145,7 +148,7 @@ public class NewBookListenerService extends Service {
 
             // UDP had an issue. Now give QR listener a turn -- interrupt it.
             // Keep UDP off until QR is done.
-            shouldRestartSocketListen = false;
+            shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting the QR-listener thread-B");
             qrScanInProgress = true;
             QRListenerThread.interrupt();
@@ -208,8 +211,8 @@ public class NewBookListenerService extends Service {
         // matter which). We don't want either listener to run while or after this advert is
         // processed so clear their start flags.
         // TODO: figure out arbitration flags!
-        //Log.d("WM","processBookAdvert: clearing shouldRestartSocketListen and shouldStartQRListen");
-        //shouldRestartSocketListen = false;
+        //Log.d("WM","processBookAdvert: clearing shouldStartSocketListen and shouldStartQRListen");
+        //shouldStartSocketListen = false;
         //shouldStartQRListen = false;
 
         try {
@@ -465,14 +468,17 @@ public class NewBookListenerService extends Service {
         Log.d("WM","getBookTcp: calling SyncServer-start");
         startSyncServer();
 
-        Socket socketTcp = null;  // ungainly name but avoids possible confusion with UDP "socket"
+        Socket socketTcp = null;
         OutputStream outStream = null;
 
         try {
-            // Establish a connection to Desktop.
-            Log.d("WM","getBookTcp: creating TCP socket to Desktop at " + ip + ":" + desktopPortTCP);
-            socketTcp = new Socket(ip, desktopPortTCP);
-            Log.d("WM","getBookTcp: got TCP socket; CONNECTED");
+            // Establish a connection to Desktop for making a book request.
+            // If connection is not achieved within the timeout period, bail.
+            socketTcp = new Socket();
+            SocketAddress sockAddr = new InetSocketAddress(ip, desktopPortTCP);
+            Log.d("WM","getBookTcp: connecting (TCP) to Desktop at " + ip + ":" + desktopPortTCP);
+            socketTcp.connect(sockAddr, numSecondsTcpTimeout * 1000);
+            Log.d("WM","getBookTcp: TCP to Desktop CONNECTED");
 
             // Create and send message to Desktop.
             outStream = new DataOutputStream(socketTcp.getOutputStream());
@@ -494,6 +500,10 @@ public class NewBookListenerService extends Service {
             // Set the flag indicating start of transaction with Desktop.
             Log.d("WM","getBookTcp: setting \'gettingBook\' flag");
             bookRequested = true;
+        } catch (SocketTimeoutException e) {
+            Log.d("WM","getBookTcp: SocketTimeoutException, bail (" + e + ")");
+            e.printStackTrace();
+            return;
         }
         catch (IOException i) {
             Log.d("WM","getBookTcp: IOException-1 (" + i + "), returning");
@@ -619,7 +629,7 @@ public class NewBookListenerService extends Service {
             public void run() {
                 try {
                     Integer port = 5913; // Must match port in Bloom class WiFiAdvertiser
-                    while (shouldRestartSocketListen) {
+                    while (shouldStartSocketListen) {
                         if (qrScanInProgress == false) {
                             Log.d("WM", "startListenForUDPBroadcast: calling listenUDP(port " + port + ")");
                             listenUDP(port);
@@ -662,8 +672,8 @@ public class NewBookListenerService extends Service {
 
     private void stopListen() {
         // stop UDP listener --
-        Log.d("WM","stopListen: clearing shouldRestartSocketListen");
-        shouldRestartSocketListen = false;
+        Log.d("WM","stopListen: clearing shouldStartSocketListen");
+        shouldStartSocketListen = false;
 
         // stop QR listener --
         Log.d("WM","stopListen: clearing shouldStartQRListen");
@@ -681,7 +691,7 @@ public class NewBookListenerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        shouldRestartSocketListen = true;
+        shouldStartSocketListen = true;
         Log.d("WM","onStartCommand: calling startListenForUDPBroadcast()");
         startListenForUDPBroadcast();
 
