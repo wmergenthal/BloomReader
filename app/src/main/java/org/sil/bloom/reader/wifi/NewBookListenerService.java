@@ -49,6 +49,7 @@ import static org.sil.bloom.reader.BloomReaderApplication.getOurDeviceName;
 
 public class NewBookListenerService extends Service {
     DatagramSocket socket;
+    WifiManager wifi = null;
     Thread UDPListenerThread;   // renamed from UDPBroadcastThread
     Thread QRListenerThread;
     private boolean shouldStartSocketListen = true;
@@ -62,9 +63,9 @@ public class NewBookListenerService extends Service {
     // and SyncServer._serverPort.
     //static int desktopPortUDP = 5915;
     static int desktopPortTCP = 5916;
-    static int numSecondsUdpTimeout = 15;  // WM, long but Samsung Galaxy Tab A seems to need it
+    static int numSecondsUdpTimeout = 30;  // WM, long but Samsung Galaxy Tab A seems to need it
     static int numSecondsQrTimeout = 20;
-    static int numSecondsTcpTimeout = 3;
+    static int numSecondsTcpTimeout = 5;   // WM, 3 seems a lot but Samsung needs even more
     static boolean debugPacketPrint = true;
     //static boolean suppressUdpReceive = true;  // WM, testing only
     int udpPktLen;
@@ -84,17 +85,43 @@ public class NewBookListenerService extends Service {
     private void listenUDP(Integer port) throws Exception {
         DatagramPacket packet;
         byte[] recvBuf = new byte[15000];
+
+        if (socket != null) {
+            Log.d("WM", "listenUDP: starting, socket.isClosed() = " + socket.isClosed());
+        } else {
+            Log.d("WM", "listenUDP: starting, socket is null");
+        }
         if (socket == null || socket.isClosed()) {
-            socket = new DatagramSocket(port);
-            socket.setBroadcast(true);
+            try {
+                // https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/net/DatagramSocket.html --
+                // "In order to receive broadcast packets a DatagramSocket should be bound to the wildcard address."
+                // Binding to wildcard address is done with 2nd arg = null.
+                Log.d("WM", "listenUDP: creating UDP socket bound to wildcard address");
+                socket = new DatagramSocket(port, null);
+                Log.d("WM", "listenUDP: setting broadcast");
+                socket.setBroadcast(true);
+            } catch (SocketException e) {
+                Log.d("WM","listenUDP: SocketException (" + e + ")");
+            }
+            Log.d("WM", "listenUDP: socket ready for use");
+        } else {
+            Log.d("WM", "listenUDP: skipped UDP socket creation, socket.isClosed() = " + socket.isClosed());
         }
 
         udpPktLen = 0;
         // MulticastLock seems to have become necessary for receiving a broadcast packet around Android 8.
-        WifiManager wifi;
-        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        multicastLock = wifi.createMulticastLock("lock");
+        //WifiManager wifi;  -- elevate scope to class level
+        if (wifi == null) {
+            Log.d("WM", "listenUDP: getting context");
+            wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            Log.d("WM", "listenUDP: creating multicastLock");
+            multicastLock = wifi.createMulticastLock("lock");
+        } else {
+            Log.d("WM", "listenUDP: reusing wifi and multicastLock");
+        }
+        Log.d("WM", "listenUDP: acquiring multicastLock");
         multicastLock.acquire();
+        Log.d("WM", "listenUDP: got multicastLock");
 
         try {
             packet = new DatagramPacket(recvBuf, recvBuf.length);
@@ -107,20 +134,14 @@ public class NewBookListenerService extends Service {
             // needs 6 secs at a minimum (empirically observed); 10 or more seems good.
             socket.setSoTimeout(numSecondsUdpTimeout * 1000);  // specify in milliseconds
 
-            //if (suppressUdpReceive == true) {
-            //    // QR testing only: suppress reception of UDP adverts. 'udpPktLen' will = 0.
-            //    Log.d("WM", "listenUDP: UDP receive suppressed for QR testing, regular timeout");
-            //    Thread.sleep(numSecondsUdpTimeout * 1000);
-            //} else {
-                // Normal operation.
-                Log.e("UDP", "Waiting for UDP broadcast");
-                Log.d("WM", "listenUDP: waiting for UDP broadcast, timeout = " + numSecondsUdpTimeout + " secs");
-                socket.receive(packet);     // blocking call; timeout raises an exception
-            //}
+            // Blocking call; timeout raises an exception.
+            Log.e("UDP", "Waiting for UDP broadcast");
+            Log.d("WM", "listenUDP: waiting for UDP broadcast, timeout = " + numSecondsUdpTimeout + " secs");
+            socket.receive(packet);
 
             udpPktLen = packet.getLength();
 
-            if (debugPacketPrint == true) {     // debug only
+            if (debugPacketPrint) {     // debug only
                 byte[] pktBytes = packet.getData();
                 String pktString = new String(pktBytes);
                 Log.d("WM", "listenUDP: got UDP packet (" + udpPktLen + " bytes) from " + packet.getAddress().getHostAddress());
@@ -130,10 +151,12 @@ public class NewBookListenerService extends Service {
             //e.printStackTrace();
             Log.d("WM","listenUDP: " + e);
             socket.close();
+            Log.d("WM", "listenUDP: releasing-A multicastLock");
             multicastLock.release();
 
-            // UDP got nothing. Now give QR listener a turn -- interrupt it.
+            // UDP got nothing. Now give QR listener a turn -- enable then interrupt it.
             // Keep UDP off until QR is done.
+            //shouldStartQRListen = true;  // should already be true but just in case...
             shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting QR-listener thread-A");
             qrScanInProgress = true;
@@ -142,12 +165,14 @@ public class NewBookListenerService extends Service {
             return;
         } catch (IOException e) {
             e.printStackTrace();
-            Log.d("WM","listenUDP: IOException (" + e + ")");
+            Log.d("WM","listenUDP: " + e);
             socket.close();
+            Log.d("WM", "listenUDP: releasing-B multicastLock");
             multicastLock.release();
 
             // UDP had an issue. Now give QR listener a turn -- interrupt it.
             // Keep UDP off until QR is done.
+            //shouldStartQRListen = true;  // should already be true but just in case...
             shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting the QR-listener thread-B");
             qrScanInProgress = true;
@@ -171,7 +196,7 @@ public class NewBookListenerService extends Service {
             ignoreAdvert = true;
         }
 
-        if ((ignoreAdvert == false) && (udpPktLen > 0)) {
+        if (!ignoreAdvert && (udpPktLen > 0)) {
             // We have a valid advertisement via UDP. Pull out from the packet *header* the
             // Desktop IP address, then process the advert and make a book request.
             String pktString = new String(packet.getData()).trim();
@@ -192,7 +217,7 @@ public class NewBookListenerService extends Service {
             //}
         }
 
-        Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", clean up and return");  // WM, temporary
+        Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", releasing multicastLock");  // WM, temporary
         multicastLock.release();
         // TODO: closing the socket seems like a good thing, but sometimes it raises a debug stack
         //       trace on BloomEditor that looks rather alarming to a user. Skip the close for now.
@@ -227,8 +252,8 @@ public class NewBookListenerService extends Service {
                 protocolVersion = msgJson.getString("protocolVersion");
                 sender = msgJson.getString("sender");
             } catch(JSONException e) {
-                Log.d("WM","processBookAdvert: JSONException-1 (" + e + "), returning");
                 e.printStackTrace();
+                Log.d("WM","processBookAdvert: JSONException-1 (" + e + "), bail");
                 return false;
             }
             float version = Float.parseFloat(protocolVersion);
@@ -237,7 +262,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of Bloom editor to exchange data with this BloomReader\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","processBookAdvert: version < 2 (" + version + "), returning");
+                Log.d("WM","processBookAdvert: version < 2 (" + version + "), bail");
                 //multicastLock.release();
                 return false;
             } else if (version >= 3.0f) {
@@ -247,7 +272,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of BloomReader to exchange data with this sender\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","processBookAdvert: version >= 3 (" + version + "), returning");
+                Log.d("WM","processBookAdvert: version >= 3 (" + version + "), bail");
                 //multicastLock.release();
                 return false;
             }
@@ -256,13 +281,18 @@ public class NewBookListenerService extends Service {
             Log.d("WM","processBookAdvert: bookFile=" + bookFile);
             Log.d("WM","processBookAdvert: title=" + title + ", newBookVersion=" + newBookVersion);
 
-            requestBookIfNewVersion(title, newBookVersion, bookFile, targetIP, sender);
-
+            if (requestBookIfNewVersion(title, newBookVersion, bookFile, targetIP, sender)) {
+                Log.d("WM","processBookAdvert: did requestBookIfNewVersion(), return");
+                return true;
+            } else {
+                Log.d("WM","processBookAdvert: requestBookIfNewVersion() failed, bail");
+                return false;
+            }
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
             // the data we expect.
-            Log.d("WM","processBookAdvert: JSONException-2 (" + e + ")");
             e.printStackTrace();
+            Log.d("WM","processBookAdvert: JSONException-2 (" + e + ")");
         }
         Log.d("WM","processBookAdvert: done, returning ok");
         return true;
@@ -273,25 +303,32 @@ public class NewBookListenerService extends Service {
         // book offered. But if it hears nothing for the specified interval then give
         // QR-scanning a shot.
 
-        // Wait here patiently until UDP-listener interrupts. That is our cue to proceed.
+        // Wait here patiently until we are interrupted. If our enable flag is set, that is
+        // UDP-listener telling us to proceed. If the flag is not set then it is a signal from
+        // elsewhere, in which case we do NOT proceed.
         try {
-            Log.d("WM", "listenQR: sleep while UDP-listener listens for advert");
-            Thread.currentThread().sleep(60000);  // TODO: can we have *indefinite* sleep?
+            Log.d("WM", "listenQR: wait while UDP-listener listens for advert");
+            //Thread.currentThread().sleep(60000);  // TODO: can we have *indefinite* sleep?
+            Thread.sleep(60000);  // TODO: can we have *indefinite* sleep?
         } catch (InterruptedException e) {
-            Log.d("WM", "listenQR: interrupted! calling qrScanAndProcess()");
-            qrScanAndProcess();
-            // QR scan operation is done so re-enable UDP listening.
-            qrScanInProgress = false;
+            if (shouldStartQRListen) {
+                Log.d("WM", "listenQR: interrupted! calling qrScanAndProcess()");
+                qrScanAndProcess();
+                // QR scan operation is done so re-enable UDP listening.
+                qrScanInProgress = false;
+            } else {
+                Log.d("WM", "listenQR: interrupted! but disabled so do nothing");
+            }
         }
         Log.d("WM", "listenQR: done, returning");
     }
 
     private void qrScanAndProcess() {
         Intent qrScan = new Intent(this, SyncActivity.class);
-        if (qrScan == null) {
-            Log.d("WM","qrScanAndProcess: qrScan == null, bail");
-            return;
-        }
+        //if (qrScan == null) {          -- Android Studio says this is always false
+        //    Log.d("WM","qrScanAndProcess: qrScan == null, bail");
+        //    return;
+        //}
         // Samsung Galaxy-Tab-A tablet (Android SDK level 34) works with or without this
         // flag, but BQ Aquaris M10 FHD tablet (Android SDK level 33) needs it. Not sure why.
         qrScan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -307,10 +344,10 @@ public class NewBookListenerService extends Service {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
-                Log.d("WM","qrScanAndProcess: InterruptedException when i = " + i);
+                Log.d("WM","qrScanAndProcess: InterruptedException, i = " + i);
                 // Not sure what else to do...
             }
-            if (SyncActivity.GetQrDataAvailable() == true) {
+            if (SyncActivity.GetQrDataAvailable()) {
                 qrString = SyncActivity.GetQrData();
                 Log.d("WM","qrScanAndProcess: " + i + " secs, got QR data!");
                 break;
@@ -355,7 +392,8 @@ public class NewBookListenerService extends Service {
         Log.d("WM", "qrScanAndProcess: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
 
-    private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
+    //private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
+    private boolean requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
         boolean bookExists = bkFile != null;
         // If the book doesn't exist it can't be up to date.
         if (bookExists && IsBookUpToDate(bkFile, bkTitle, bkVersion)) {
@@ -377,6 +415,7 @@ public class NewBookListenerService extends Service {
                 _announcedBooks.add(bkTitle); // don't keep saying this.
             }
             Log.d("WM","requestBookIfNewVersion: already have book");
+            return true;
         } else {
             if (bookExists) {
                 Log.d("WM","requestBookIfNewVersion: requesting updated book");
@@ -387,15 +426,23 @@ public class NewBookListenerService extends Service {
             }
             // It can take a few seconds for the transfer to get going. We won't ask for this again unless
             // we don't start getting it in a reasonable time.
-            Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
-            addsToSkipBeforeRetry = 3;
+            //Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
+            //addsToSkipBeforeRetry = 3;
 
             // Make the book request, finally.
             // Select either UDP or TCP by commenting out the unused call (and its debug msg).
             //Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
             //getBook(desktopIP, bkTitle);
             Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
-            getBookTcp(desktopIP, bkTitle);
+            if (getBookTcp(desktopIP, bkTitle)) {
+                // It can take a few seconds for the transfer to get going. We won't ask for this again unless
+                // we don't start getting it in a reasonable time.
+                Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
+                addsToSkipBeforeRetry = 3;
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
@@ -422,10 +469,10 @@ public class NewBookListenerService extends Service {
 
         @Override
         public void receivedFile(String name, boolean success) {
-            if (success == true) {
-                Log.d("WM", "receivedFile: calling transferComplete(), OKAY");
+            if (success) {
+                Log.d("WM", "receivedFile: calling transferComplete(OKAY)");
             } else {
-                Log.d("WM", "receivedFile: calling transferComplete(), FAIL");
+                Log.d("WM", "receivedFile: calling transferComplete(FAIL)");
             }
             _parent.transferComplete(success);
             if (success) {
@@ -450,7 +497,7 @@ public class NewBookListenerService extends Service {
     //    sendMessageTask.execute();  // deprecated method
     //
     //    // Set the flag indicating start of transaction with Desktop.
-    //    Log.d("WM","getBook: setting \'gettingBook\' flag");
+    //    Log.d("WM","getBook: setting \'bookRequested\' flag");
     //    bookRequested = true;
     //}
 
@@ -460,7 +507,8 @@ public class NewBookListenerService extends Service {
     //     was received, but there is no guarantee that a UDP response from Reader will likewise be.
     //   - This function uses no deprecated functions. The UDP response uses two -- one in getBook()
     //     and one in 'private static class SendMessage'.
-    private void getBookTcp(String ip, String title) {
+    //private void getBookTcp(String ip, String title) {
+    private boolean getBookTcp(String ip, String title) {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
 
         // This server will be sent the actual book data (and the final notification). Start it now
@@ -489,8 +537,9 @@ public class NewBookListenerService extends Service {
                 bookRequest.put("deviceAddress", getOurIpAddress());
                 bookRequest.put("deviceName", getOurDeviceName());
             } catch (JSONException e) {
-                Log.d("WM","getBookTcp: JSONException (" + e + ")");
                 e.printStackTrace();
+                Log.d("WM","getBookTcp: JSONException (" + e + "), bail");
+                return false;
             }
             byte[] outBuf = bookRequest.toString().getBytes("UTF-8");
             outStream.write(outBuf);
@@ -498,16 +547,16 @@ public class NewBookListenerService extends Service {
             Log.d("WM","   " + bookRequest.toString());
 
             // Set the flag indicating start of transaction with Desktop.
-            Log.d("WM","getBookTcp: setting \'gettingBook\' flag");
+            Log.d("WM","getBookTcp: setting \'bookRequested\' = true");
             bookRequested = true;
         } catch (SocketTimeoutException e) {
-            Log.d("WM","getBookTcp: SocketTimeoutException, bail (" + e + ")");
             e.printStackTrace();
-            return;
+            Log.d("WM","getBookTcp: SocketTimeoutException (" + e + "), bail");
+            return false;
         }
         catch (IOException i) {
-            Log.d("WM","getBookTcp: IOException-1 (" + i + "), returning");
-            return;
+            Log.d("WM","getBookTcp: IOException-1 (" + i + "), bail");
+            return false;
         }
 
         // Close the connection.
@@ -517,9 +566,11 @@ public class NewBookListenerService extends Service {
             socketTcp.close();
         }
         catch (IOException i) {
-            Log.d("WM","getBookTcp: IOException-2 (" + i + ")");
+            Log.d("WM","getBookTcp: IOException-2 (" + i + "), bail");
+            return false;
         }
         Log.d("WM","getBookTcp: done");
+        return true;
     }
 
     private void startSyncServer() {
@@ -549,7 +600,7 @@ public class NewBookListenerService extends Service {
         // We can stop listening for file transfers and notifications from the desktop.
         Log.d("WM","transferComplete: calling SyncServer-stop");
         stopSyncServer();
-        Log.d("WM","transferComplete: clearing \'gettingBook\' flag");
+        Log.d("WM","transferComplete: setting \'bookRequested\' = false");
         bookRequested = false;
 
         final int resultId = success ? R.string.done : R.string.transferFailed;
@@ -624,19 +675,40 @@ public class NewBookListenerService extends Service {
     public static final String BROADCAST_BOOK_LOADED = "org.sil.bloomreader.booklistener.book.loaded";
 
     private void startListenForUDPBroadcast() {
+
+        // TODO: it is sometimes quite confusing to see UDPL restart right after a book
+        //       request has been made. The UDP socket and WiFi context are being touched
+        //       while an HTTP connection is being set up with Desktop for book transfer.
+        //       To avoid this, why not check 'bookRequested' and, if it is true, enter a
+        //       slow polling loop where UDPL sleeps for 1 second before checking again.
+        //       Restart UDPL only after the book transfer has completed.
+        while (bookRequested) {
+            Log.d("WM", "startListenForUDPBroadcast: bookRequested is active, wait...");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Log.d("WM","startListenForUDPBroadcast: InterruptedException-1");
+                // nothing to do
+            }
+        }
         Log.d("WM", "startListenForUDPBroadcast: creating UDPListenerThread");
         UDPListenerThread = new Thread(new Runnable() {
             public void run() {
                 try {
                     Integer port = 5913; // Must match port in Bloom class WiFiAdvertiser
                     while (shouldStartSocketListen) {
-                        if (qrScanInProgress == false) {
+                        if (!qrScanInProgress) {  // TODO: consider adding 'bookRequested' as a factor
                             Log.d("WM", "startListenForUDPBroadcast: calling listenUDP(port " + port + ")");
                             listenUDP(port);
                             Log.d("WM", "startListenForUDPBroadcast: listenUDP() returned");
                         } else {
                             Log.d("WM", "startListenForUDPBroadcast: QR scan in progress, retry later");
-                            Thread.sleep(1000);
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                Log.d("WM","startListenForUDPBroadcast: InterruptedException-2");
+                                // nothing to do
+                            }
                         }
                     }
                 } catch (Exception e) {
@@ -644,7 +716,7 @@ public class NewBookListenerService extends Service {
                 }
             }
         });
-        Log.d("WM", "startListenForUDPBroadcast: starting UDPListenerThread");
+        Log.d("WM", "startListenForUDPBroadcast: starting UDPListenerThread (ID = " + UDPListenerThread.getId() + ")");
         UDPListenerThread.start();
     }
 
@@ -666,18 +738,46 @@ public class NewBookListenerService extends Service {
                 }
             }
         });
-        Log.d("WM", "startListenForQRCode: starting QRListenerThread");
+        Log.d("WM", "startListenForQRCode: starting QRListenerThread (ID = " + QRListenerThread.getId() + ")");
         QRListenerThread.start();
     }
 
     private void stopListen() {
-        // stop UDP listener --
+        // don't let UDP listener start again --
         Log.d("WM","stopListen: clearing shouldStartSocketListen");
         shouldStartSocketListen = false;
 
-        // stop QR listener --
+        // don't let QR listener start again--
         Log.d("WM","stopListen: clearing shouldStartQRListen");
         shouldStartQRListen = false;
+
+        //Log.d("WM", "stopListen: releasing multicastLock");
+        //multicastLock.release();  -- leads to crash
+
+        // Want to stop both listener threads. The way to do that seems to be:
+        //   - call interrupt() on the thread
+        //   - set the thread to null
+        // Can't do this for QRL because interrupt() is how it gets awakened by UDPL.
+        // So at this point just stop UDPL, which should keep QRL from being activated.
+        if (UDPListenerThread != null) {
+            //Log.d("WM","stopListen: closing and deleting socket");
+            Log.d("WM","stopListen: closing socket");
+            socket.disconnect();
+            socket.close();
+            //socket = null;
+            Log.d("WM","stopListen: calling interrupt() on UDPListenerThread (ID = " + UDPListenerThread.getId() + ")");
+            UDPListenerThread.interrupt();
+            UDPListenerThread = null;
+
+            // Next time UDPL starts in a new thread, enable it to listen for UDP adverts.
+            qrScanInProgress = false;
+        }
+        //if (QRListenerThread != null) {
+        //    Log.d("WM","stopListen: stopping QRListenerThread");
+        //    QRListenerThread.interrupt();
+        //    QRListenerThread = null;
+        //}
+        Log.d("WM","stopListen: done, returning");
     }
 
     @Override
@@ -685,8 +785,8 @@ public class NewBookListenerService extends Service {
         Log.d("WM","onDestroy: calling stopListen()");
         stopListen();
 
-        Log.d("WM","onDestroy: calling stopSelf()");
-        stopSelf();
+        //Log.d("WM","onDestroy: calling stopSelf()");
+        //stopSelf();
     }
 
     @Override
