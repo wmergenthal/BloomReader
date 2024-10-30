@@ -186,6 +186,8 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
         boolean ignoreAdvert = false;
+        //boolean ignoreAdvert = true;  // WM, test only -- scenarios where Reader must see no UDP adverts
+
         if (bookRequested) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
             ignoreAdvert = true;
