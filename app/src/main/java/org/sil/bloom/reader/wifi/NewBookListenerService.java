@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiInfo;
 //import android.os.AsyncTask;
 import android.os.IBinder;
 import android.util.Log;  // WM, added
@@ -61,13 +62,12 @@ public class NewBookListenerService extends Service {
     // Must match Bloom Desktop UDPListener._portToListen.
     // Must be different from ports in NewBookListenerService.startListenForUDPBroadcast
     // and SyncServer._serverPort.
-    //static int desktopPortUDP = 5915;
+    //static int desktopPortUDP = 5915;  -- use TCP instead to make book requests
     static int desktopPortTCP = 5916;
     static int numSecondsUdpTimeout = 30;  // WM, long but Samsung Galaxy Tab A seems to need it
     static int numSecondsQrTimeout = 20;
     static int numSecondsTcpTimeout = 5;   // WM, 3 seems a lot but Samsung needs even more
     static boolean debugPacketPrint = true;
-    //static boolean suppressUdpReceive = true;  // WM, testing only
     int udpPktLen;
     boolean bookRequested = false;
     boolean httpServiceRunning = false;
@@ -110,7 +110,7 @@ public class NewBookListenerService extends Service {
 
         udpPktLen = 0;
         // MulticastLock seems to have become necessary for receiving a broadcast packet around Android 8.
-        //WifiManager wifi;  -- elevate scope to class level
+        //WifiManager wifi;  -- elevate to class-level scope
         if (wifi == null) {
             Log.d("WM", "listenUDP: getting context");
             wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -154,8 +154,7 @@ public class NewBookListenerService extends Service {
             Log.d("WM", "listenUDP: releasing-A multicastLock");
             multicastLock.release();
 
-            // UDP got nothing. Now give QR listener a turn -- enable then interrupt it.
-            // Keep UDP off until QR is done.
+            // UDP got nothing; now give QR listener a turn. Keep UDP off until QR is done.
             //shouldStartQRListen = true;  // should already be true but just in case...
             shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting QR-listener thread-A");
@@ -170,8 +169,7 @@ public class NewBookListenerService extends Service {
             Log.d("WM", "listenUDP: releasing-B multicastLock");
             multicastLock.release();
 
-            // UDP had an issue. Now give QR listener a turn -- interrupt it.
-            // Keep UDP off until QR is done.
+            // UDP had an issue; now give QR listener a turn. Keep UDP off until QR is done.
             //shouldStartQRListen = true;  // should already be true but just in case...
             shouldStartSocketListen = false;
             Log.d("WM", "listenUDP: interrupting the QR-listener thread-B");
@@ -186,7 +184,7 @@ public class NewBookListenerService extends Service {
         //     come around again and we can act on it when we're ready.
         //   - We have requested a book but haven't started receiving it yet.
         boolean ignoreAdvert = false;
-        //boolean ignoreAdvert = true;  // WM, test only -- scenarios where Reader must see no UDP adverts
+        //boolean ignoreAdvert = true;  // WM, test only: scenarios where Reader must see no UDP adverts
 
         if (bookRequested) {
             Log.d("WM","listenUDP: ignore advert (getting book)");
@@ -205,24 +203,13 @@ public class NewBookListenerService extends Service {
             String pktSenderIP = new String(packet.getAddress().getHostAddress());
             Log.d("WM", "listenUDP: calling processBookAdvert()");  // WM, temporary
             advertProcessedOk = processBookAdvert(pktString, pktSenderIP);
-
-            //if (advertProcessedOk) {
-            //    // We requested the book. We expect to receive it shortly, but even if it
-            //    // doesn't arrive don't let QR-listener start. That could lead to confusion.
-            //    Log.d("WM", "listenUDP: book requested ok, set shouldStartQRListen=false");
-            //    // TODO: figure out arbitration flags!
-            //    //shouldStartQRListen = false;
-            //} else {
-            //    Log.d("WM", "listenUDP: book request FAILED, keep shouldStartQRListen=true");
-            //    // TODO: figure out arbitration flags!
-            //    //shouldStartQRListen = true;
-            //}
         }
 
         Log.d("WM", "listenUDP: done, success=" + advertProcessedOk + ", releasing multicastLock");  // WM, temporary
         multicastLock.release();
         // TODO: closing the socket seems like a good thing, but sometimes it raises a debug stack
-        //       trace on BloomEditor that looks rather alarming to a user. Skip the close for now.
+        //       trace on BloomEditor that looks rather alarming to a user. Skip the close for now
+        //       but keep in mind that further testing may show the need for it after all.
         //socket.close();
 
         Log.d("WM", "listenUDP: returning-normal");
@@ -233,20 +220,14 @@ public class NewBookListenerService extends Service {
     // a book request and send it to BloomDesktop.
     // The advert string and Desktop IP address string are passed in as arguments.
     private Boolean processBookAdvert(String advertString, String targetIP) throws Exception {
-
-        // This function running means that advert data arrived, by UDP or QR channel (doesn't
-        // matter which). We don't want either listener to run while or after this advert is
-        // processed so clear their start flags.
-        // TODO: figure out arbitration flags!
-        //Log.d("WM","processBookAdvert: clearing shouldStartSocketListen and shouldStartQRListen");
-        //shouldStartSocketListen = false;
-        //shouldStartQRListen = false;
-
         try {
-            // Pull out from the advertisement payload: (a) book title, (b) book version
+            // Pull out from the advertisement payload: (a) book title, (b) book version, (c) SSID if any
             JSONObject msgJson = new JSONObject(advertString);
             String title = new String(msgJson.getString("title"));
             String newBookVersion = new String(msgJson.getString("version"));
+            String ssidDesktop = new String(msgJson.getString("ssid"));
+            Log.d("WM","processBookAdvert: ssidDesktop = " + ssidDesktop);
+            //Log.d("WM","processBookAdvert: ssidDesktop = TBD");
 
             String sender = "unknown";
             String protocolVersion = "0.0";
@@ -258,6 +239,8 @@ public class NewBookListenerService extends Service {
                 Log.d("WM","processBookAdvert: JSONException-1 (" + e + "), bail");
                 return false;
             }
+
+            // Verify that protocol version falls in the correct range.
             float version = Float.parseFloat(protocolVersion);
             if (version <  2.0f) {
                 if (!reportedVersionProblem) {
@@ -278,6 +261,34 @@ public class NewBookListenerService extends Service {
                 //multicastLock.release();
                 return false;
             }
+
+            // Verify that we (Reader) and Desktop are on the same SSID.
+            // From the advert we know the Desktop's SSID, if it has one. Now get ours:
+            WifiManager wifiMan = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            WifiInfo info = wifiMan.getConnectionInfo();
+            String ssidReader = info.getSSID();
+            Log.d("WM","processBookAdvert: ssidReader = " + ssidReader);
+
+            // TODO:
+            //   - If we are not on the same SSID as Desktop then there is a good chance that a
+            //     book request and/or transfer won't work. Put up a warning to our User, advising
+            //     them to join the same SSID that Desktop is on.
+            //   - If we are on the same SSID as Desktop then the transfer should work. Proceed.
+            //   - If either of us is on a wired network connection, that connection won't have an
+            //     SSID. At least they aren't *different* so a transfer might work. Proceed.
+            //if (ssidDesktop) {
+            //    // Desktop is using Wi-Fi, so verify that we are both on the same SSID.
+            //    Log.d("WM","processBookAdvert: compare SSID-desktop (" + ssidDesktop + ") and SSID-reader (" + ssidReader + ")");
+            //    if (!ssidDesktop.equals(ssidReader)) {
+            //        Log.d("WM","processBookAdvert: different SSIDs, prompt user");
+            //        aaaaaaaaaaaaaaaaaa;
+            //    } else {
+            //        Log.d("WM","processBookAdvert: matching SSIDs, proceed");
+            //    }
+            //} else {
+            //    // Desktop is using a wired connection. That has no SSID but will still work.
+            //    Log.d("WM","processBookAdvert: Desktop has wired (no SSID), no check needed");
+            //}
 
             File bookFile = IOUtilities.getBookFileIfExists(title);
             Log.d("WM","processBookAdvert: bookFile=" + bookFile);
@@ -310,8 +321,7 @@ public class NewBookListenerService extends Service {
         // elsewhere, in which case we do NOT proceed.
         try {
             Log.d("WM", "listenQR: wait while UDP-listener listens for advert");
-            //Thread.currentThread().sleep(60000);  // TODO: can we have *indefinite* sleep?
-            Thread.sleep(60000);  // TODO: can we have *indefinite* sleep?
+            Thread.sleep(60000);  // TODO: should we have *indefinite* sleep?
         } catch (InterruptedException e) {
             if (shouldStartQRListen) {
                 Log.d("WM", "listenQR: interrupted! calling qrScanAndProcess()");
@@ -327,14 +337,16 @@ public class NewBookListenerService extends Service {
 
     private void qrScanAndProcess() {
         Intent qrScan = new Intent(this, SyncActivity.class);
-        //if (qrScan == null) {          -- Android Studio says this is always false
+        //if (qrScan == null) {       -- Android Studio says this is always false
         //    Log.d("WM","qrScanAndProcess: qrScan == null, bail");
         //    return;
         //}
+
         // Samsung Galaxy-Tab-A tablet (Android SDK level 34) works with or without this
         // flag, but BQ Aquaris M10 FHD tablet (Android SDK level 33) needs it. Not sure why.
         qrScan.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Log.d("WM","qrScanAndProcess: calling startActivity()");
+
+        //Log.d("WM","qrScanAndProcess: calling startActivity()");
         startActivity(qrScan);
         Log.d("WM","qrScanAndProcess: startActivity() returned, begin awaiting QR data");
 
@@ -363,8 +375,6 @@ public class NewBookListenerService extends Service {
         //       - extract from it the Desktop's IP address
         //       - process it just like a UDP advert would be
         if (qrString == null) {
-            //Log.d("WM", "qrScanAndProcess: didn't get QR data, call ActivityStop() and exit");
-            //SyncActivity.ActivityStop();
             Log.d("WM", "qrScanAndProcess: didn't get QR data, calling stopService()");
             // TODO: does this really do anything? Remove it?
             stopService(qrScan);
@@ -388,13 +398,10 @@ public class NewBookListenerService extends Service {
         // We got the QR data so close its screen and return to the Wi-Fi screen.
         Log.d("WM", "qrScanAndProcess: advert processed, call ActivityStop()");  // WM, temporary
         SyncActivity.ActivityStop();
-        //Log.d("WM", "qrScanAndProcess: advert processed, call stopService()");  // WM, temporary
-        //stopService(qrScan);
 
         Log.d("WM", "qrScanAndProcess: done, success=" + advertProcessedOk + ", return");  // WM, temporary
     }
 
-    //private void requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
     private boolean requestBookIfNewVersion(String bkTitle, String bkVersion, File bkFile, String desktopIP, String sender) {
         boolean bookExists = bkFile != null;
         // If the book doesn't exist it can't be up to date.
@@ -426,15 +433,8 @@ public class NewBookListenerService extends Service {
                 Log.d("WM","requestBookIfNewVersion: requesting new book");
                 GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), bkTitle, sender) + "\n");
             }
-            // It can take a few seconds for the transfer to get going. We won't ask for this again unless
-            // we don't start getting it in a reasonable time.
-            //Log.d("WM","requestBookIfNewVersion: our IP address is " + getOurIpAddress());
-            //addsToSkipBeforeRetry = 3;
 
-            // Make the book request, finally.
-            // Select either UDP or TCP by commenting out the unused call (and its debug msg).
-            //Log.d("WM","requestBookIfNewVersion: calling getBook() [uses UDP]");
-            //getBook(desktopIP, bkTitle);
+            // Make the book request over the TCP connection.
             Log.d("WM","requestBookIfNewVersion: calling getBookTcp()");
             if (getBookTcp(desktopIP, bkTitle)) {
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
@@ -485,31 +485,12 @@ public class NewBookListenerService extends Service {
         }
     }
 
-    //private void getBook(String sourceIP, String title) {
-    //    AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
-    //    // This server will be sent the actual book data (and the final notification)
-    //    Log.d("WM","getBook: calling startSyncServer()");  // WM, temporary
-    //    startSyncServer();
-    //    // Send one package to the desktop to request the book. Its contents tell the desktop
-    //    // what IP address to use.
-    //    SendMessage sendMessageTask = new SendMessage();
-    //    sendMessageTask.desktopIpAddress = sourceIP;
-    //    sendMessageTask.ourIpAddress = getOurIpAddress();
-    //    sendMessageTask.ourDeviceName = getOurDeviceName();
-    //    sendMessageTask.execute();  // deprecated method
-    //
-    //    // Set the flag indicating start of transaction with Desktop.
-    //    Log.d("WM","getBook: setting \'bookRequested\' flag");
-    //    bookRequested = true;
-    //}
-
     // This is a TCP version of getBook(). That function implements a UDP unicast response to the
     // Desktop's advertisement. The TCP response implemented here has some advantages:
     //   - TCP is guaranteed delivery. Yes, invoking getBook() means that Desktop's UDP broadcast
     //     was received, but there is no guarantee that a UDP response from Reader will likewise be.
-    //   - This function uses no deprecated functions. The UDP response uses two -- one in getBook()
+    //   - This function uses no deprecated functions. The UDP response used two -- one in getBook()
     //     and one in 'private static class SendMessage'.
-    //private void getBookTcp(String ip, String title) {
     private boolean getBookTcp(String ip, String title) {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
 
@@ -534,7 +515,7 @@ public class NewBookListenerService extends Service {
             outStream = new DataOutputStream(socketTcp.getOutputStream());
             JSONObject bookRequest = new JSONObject();
             try {
-                // names used here must match those in Bloom WiFiAdvertiser.Start(),
+                // Names used here must match those in Bloom WiFiAdvertiser.Start(),
                 // in the event handler for _wifiListener.NewMessageReceived.
                 bookRequest.put("deviceAddress", getOurIpAddress());
                 bookRequest.put("deviceName", getOurDeviceName());
@@ -678,12 +659,12 @@ public class NewBookListenerService extends Service {
 
     private void startListenForUDPBroadcast() {
 
-        // TODO: it is sometimes quite confusing to see UDPL restart right after a book
-        //       request has been made. The UDP socket and WiFi context are being touched
-        //       while an HTTP connection is being set up with Desktop for book transfer.
-        //       To avoid this, why not check 'bookRequested' and, if it is true, enter a
-        //       slow polling loop where UDPL sleeps for 1 second before checking again.
-        //       Restart UDPL only after the book transfer has completed.
+        // It can be confusing to see UDPL restart right after a book request has been made.
+        // The UDP socket and WiFi context are being touched while an HTTP connection is being
+        // set up with Desktop for a book transfer.
+        // To avoid this, check the book-operation-in-progress flag. If it is true, enter a slow
+        // polling loop wwhere UDPL sleeps in 1-second durations. At the end of each nap it checks
+        // whether the book transfer is done, and we don't restart UDPL until it is.
         while (bookRequested) {
             Log.d("WM", "startListenForUDPBroadcast: bookRequested is active, wait...");
             try {
@@ -727,7 +708,6 @@ public class NewBookListenerService extends Service {
         QRListenerThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    //while (shouldStartQRListen) {
                     if (shouldStartQRListen) {
                         Log.d("WM", "startListenForQRCode: calling listenQR()");
                         listenQR();
@@ -759,10 +739,9 @@ public class NewBookListenerService extends Service {
         // Want to stop both listener threads. The way to do that seems to be:
         //   - call interrupt() on the thread
         //   - set the thread to null
-        // Can't do this for QRL because interrupt() is how it gets awakened by UDPL.
-        // So at this point just stop UDPL, which should keep QRL from being activated.
+        // But, can't do this for QRL because interrupt() is how it gets awakened by UDPL.
+        // So at this point just stop UDPL, which should also keep QRL from activating.
         if (UDPListenerThread != null) {
-            //Log.d("WM","stopListen: closing and deleting socket");
             Log.d("WM","stopListen: closing socket");
             socket.disconnect();
             socket.close();
@@ -786,9 +765,6 @@ public class NewBookListenerService extends Service {
     public void onDestroy() {
         Log.d("WM","onDestroy: calling stopListen()");
         stopListen();
-
-        //Log.d("WM","onDestroy: calling stopSelf()");
-        //stopSelf();
     }
 
     @Override
@@ -797,44 +773,10 @@ public class NewBookListenerService extends Service {
         Log.d("WM","onStartCommand: calling startListenForUDPBroadcast()");
         startListenForUDPBroadcast();
 
-        //shouldStartQRListen = true;
+        // Start QRL but don't enable it (via 'shouldStartQRListen') to operate yet. That
+        // only happens when UDPL triggers QRL by calling its interrupt().
         Log.d("WM","onStartCommand: calling startListenForQRCode()");
         startListenForQRCode();
         return START_STICKY;
     }
-
-    // This class is responsible to send one message packet to the IP address we
-    // obtained from the desktop, containing the Android's own IP address.
-    //private static class SendMessage extends AsyncTask<Void, Void, Void> {
-    //
-    //    public String ourIpAddress;
-    //    public String desktopIpAddress;
-    //    public String ourDeviceName;
-    //    @Override
-    //    protected Void doInBackground(Void... params) {    // deprecated
-    //        try {
-    //            InetAddress receiverAddress = InetAddress.getByName(desktopIpAddress);
-    //            DatagramSocket socket = new DatagramSocket();
-    //            JSONObject data = new JSONObject();
-    //            try {
-    //                // names used here must match those in Bloom WiFiAdvertiser.Start(),
-    //                // in the event handler for _wifiListener.NewMessageReceived.
-    //                data.put("deviceAddress", ourIpAddress);
-    //                data.put("deviceName", ourDeviceName);
-    //            } catch (JSONException e) {
-    //                // How could these fail?? But compiler demands we catch this.
-    //                e.printStackTrace();
-    //            }
-    //            byte[] buffer = data.toString().getBytes("UTF-8");
-    //            Log.d("WM","doInBackground: creating UDP packet for Desktop at " + desktopIpAddress + ":" + desktopPortUDP);
-    //            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPortUDP);
-    //            socket.send(packet);
-    //            Log.d("WM","doInBackground: JSON message sent to desktop, " + buffer.length + " bytes:");
-    //            Log.d("WM","   " + data.toString());
-    //        } catch (IOException e) {
-    //            e.printStackTrace();
-    //        }
-    //        return null;
-    //    }
-    //}
 }
