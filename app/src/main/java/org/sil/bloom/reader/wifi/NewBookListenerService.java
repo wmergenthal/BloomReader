@@ -262,11 +262,15 @@ public class NewBookListenerService extends Service {
                 return false;
             }
 
-            // Verify that we (Reader) and Desktop are on the same SSID.
-            // From the advert we know the Desktop's SSID, if it has one. Now get ours:
+            // Check if we (Reader) and Desktop are on the same SSID.
+            // From the advert we know the Desktop's SSID, if it has one. Now get ours.
+            // NOTE: Reader's SSID will probably come back with quotes around it -- not sure why.
+            // A quote is an illegal character for an SSID, plus it messes up the comparison with
+            // the Desktop's SSID, so remove any quote characters found.
             WifiManager wifiMan = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             WifiInfo info = wifiMan.getConnectionInfo();
             String ssidReader = info.getSSID();
+            ssidReader = ssidReader.replace("\"", "");
             Log.d("WM","processBookAdvert: ssidReader = " + ssidReader);
 
             // TODO:
