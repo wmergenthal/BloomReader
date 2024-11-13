@@ -226,8 +226,7 @@ public class NewBookListenerService extends Service {
             String title = new String(msgJson.getString("title"));
             String newBookVersion = new String(msgJson.getString("version"));
             String ssidDesktop = new String(msgJson.getString("ssid"));
-            Log.d("WM","processBookAdvert: ssidDesktop = " + ssidDesktop);
-            //Log.d("WM","processBookAdvert: ssidDesktop = TBD");
+            Log.d("WM","processBookAdvert: ssidDesktop = " + ssidDesktop + ", length = " + ssidDesktop.length());
 
             String sender = "unknown";
             String protocolVersion = "0.0";
@@ -264,35 +263,45 @@ public class NewBookListenerService extends Service {
 
             // Check if we (Reader) and Desktop are on the same SSID.
             // From the advert we know the Desktop's SSID, if it has one. Now get ours.
-            // NOTE: Reader's SSID will probably come back with quotes around it -- not sure why.
-            // A quote is an illegal character for an SSID, plus it messes up the comparison with
-            // the Desktop's SSID, so remove any quote characters found.
+            // NOTE: Reader's SSID will probably come with quotes around it. A quote is an illegal
+            // character for an SSID, plus it messes up the comparison with the Desktop's SSID, so
+            // remove any quote characters found.
             WifiManager wifiMan = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             WifiInfo info = wifiMan.getConnectionInfo();
             String ssidReader = info.getSSID();
             ssidReader = ssidReader.replace("\"", "");
             Log.d("WM","processBookAdvert: ssidReader = " + ssidReader);
 
-            // TODO:
-            //   - If we are not on the same SSID as Desktop then there is a good chance that a
-            //     book request and/or transfer won't work. Put up a warning to our User, advising
-            //     them to join the same SSID that Desktop is on.
-            //   - If we are on the same SSID as Desktop then the transfer should work. Proceed.
-            //   - If either of us is on a wired network connection, that connection won't have an
-            //     SSID. At least they aren't *different* so a transfer might work. Proceed.
-            //if (ssidDesktop) {
-            //    // Desktop is using Wi-Fi, so verify that we are both on the same SSID.
-            //    Log.d("WM","processBookAdvert: compare SSID-desktop (" + ssidDesktop + ") and SSID-reader (" + ssidReader + ")");
-            //    if (!ssidDesktop.equals(ssidReader)) {
-            //        Log.d("WM","processBookAdvert: different SSIDs, prompt user");
-            //        aaaaaaaaaaaaaaaaaa;
-            //    } else {
-            //        Log.d("WM","processBookAdvert: matching SSIDs, proceed");
-            //    }
-            //} else {
-            //    // Desktop is using a wired connection. That has no SSID but will still work.
-            //    Log.d("WM","processBookAdvert: Desktop has wired (no SSID), no check needed");
-            //}
+            // Temporary hack to allow testing of when SSIDs differ (Case 1). I can't directly
+            // run this because my home network doesn't do multiple SSIDs. Simulate a different
+            // network by deleting the 1st character from Reader's SSID.
+            StringBuilder sb = new StringBuilder(ssidReader);
+            sb = sb.deleteCharAt(0);
+            ssidReader = sb.toString();
+            Log.d("WM","processBookAdvert: ssidReader (hacked) = " + ssidReader);
+
+            // There are 3 cases to handle:
+            // 1. If we (Reader) ARE NOT on the same SSID as Desktop there is a good chance
+            //    that a book request and/or transfer won't work. Put up a warning to our User,
+            //    advising them to join the same SSID that Desktop is on.
+            // 2. If we ARE on the same SSID as Desktop then a transfer should work. Proceed.
+            // 3. If either is on a wired network connection, that connection won't have an
+            //    SSID. At least they aren't *different* so a transfer might work. Proceed.
+            if (!ssidDesktop.isEmpty()) {
+                // Desktop is using Wi-Fi so check if we are both on the same SSID.
+                Log.d("WM","processBookAdvert: compare SSID-desktop (" + ssidDesktop + ") and SSID-reader (" + ssidReader + ")");
+                if (!ssidDesktop.equals(ssidReader)) {
+                    // Case (1) - not the same SSID, transfer likely won't work. Prompt the User.
+                    Log.d("WM","processBookAdvert: different SSIDs, prompt user");
+                    //aaaaaaaaaaaaaaaaaa;
+                } else {
+                    // Case (2) - same SSID, transfer should work. Proceed.
+                    Log.d("WM","processBookAdvert: matching SSIDs, proceed");
+                }
+            } else {
+                // Case (3) - Desktop is on a wired connection => no SSID. Might work. Proceed.
+                Log.d("WM","processBookAdvert: Desktop has wired connection (no SSID), proceed");
+            }
 
             File bookFile = IOUtilities.getBookFileIfExists(title);
             Log.d("WM","processBookAdvert: bookFile=" + bookFile);
