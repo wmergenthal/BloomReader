@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.IBinder;
+import android.util.Log;
 import androidx.annotation.Nullable;
 
 import org.json.JSONException;
@@ -77,15 +78,29 @@ public class NewBookListenerService extends Service {
         try {
             DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
             //Log.e("UDP", "Waiting for UDP broadcast");
+            Log.d("WM", "listen: waiting for UDP advert");
             socket.receive(packet);
-            if (gettingBook)
+
+            // WM, packet print start
+            int udpPktLen = packet.getLength();
+            byte[] pktBytes = packet.getData();
+            String pktString = new String(pktBytes);
+            Log.d("WM", "listen: got UDP packet (" + udpPktLen + " bytes) from " + packet.getAddress().getHostAddress());
+            Log.d("WM", "   advertisement = " + pktString.substring(0, udpPktLen));
+            // WM, packet print end
+
+            if (gettingBook) {
+                Log.d("WM","listen: ignore advert (getting book), returning");
                 return; // ignore new advertisements while downloading. Will receive again later.
+            }
             if (addsToSkipBeforeRetry > 0) {
                 // We ignore a few adds after requesting a book before we (hopefully) start receiving.
                 addsToSkipBeforeRetry--;
+                Log.d("WM","listen: ignore advert (decr'd skips, now = " + addsToSkipBeforeRetry + "), returning");
                 return;
             }
             String senderIP = packet.getAddress().getHostAddress();
+            Log.d("WM","listen: accept advert from " + senderIP + ", compose request");
             String message = new String(packet.getData()).trim();
             JSONObject data = new JSONObject(message);
             String title = data.getString("title");
@@ -104,6 +119,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of Bloom editor to exchange data with this BloomReader\n");
                     reportedVersionProblem = true;
                 }
+                Log.d("WM","listen: bad version, < 2.0, don't request");
                 return;
             } else if (version >= 3.0f) {
                 // Desktop currently uses 2.0 exactly; the plan is that non-breaking changes
@@ -112,6 +128,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of BloomReader to exchange data with this sender\n");
                     reportedVersionProblem = true;
                 }
+                Log.d("WM","listen: bad version, >= 3.0, don't request");
                 return;
             }
             File bookFile = IOUtilities.getBookFileIfExists(title);
@@ -135,6 +152,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.already_have_version), title) + "\n\n");
                     _announcedBooks.add(title); // don't keep saying this.
                 }
+                Log.d("WM","listen: already have this, don't request");
             }
             else {
                 if (bookExists)
@@ -143,6 +161,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), title, sender) + "\n");
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
+                Log.d("WM","listen: requesting book");
                 addsToSkipBeforeRetry = 3;
                 getBook(senderIP, title);
             }
@@ -152,6 +171,7 @@ public class NewBookListenerService extends Service {
             e.printStackTrace();
         }
         finally {
+            Log.d("WM","listen: normal socket close and lock release");
             socket.close();
             multicastLock.release();
         }
@@ -176,10 +196,16 @@ public class NewBookListenerService extends Service {
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
             gettingBook = true;
+            Log.d("WM","receivingFile: \"" + name + "\"");
         }
 
         @Override
         public void receivedFile(String name, boolean success) {
+            if (success) {
+                Log.d("WM", "receivedFile: calling transferComplete(OKAY)");
+            } else {
+                Log.d("WM", "receivedFile: calling transferComplete(FAIL)");
+            }
             _parent.transferComplete(success);
             if (success) {
                 // We won't announce subsequent up-to-date advertisements for this book.
@@ -203,17 +229,23 @@ public class NewBookListenerService extends Service {
     }
 
     private void startSyncServer() {
-        if (httpServiceRunning)
+        if (httpServiceRunning) {
+            Log.d("WM","startSyncServer: already running, bail");
             return;
+        }
         Intent serviceIntent = new Intent(this, SyncService.class);
+        Log.d("WM","startSyncServer: calling startService()");
         startService(serviceIntent);
         httpServiceRunning = true;
     }
 
     private void stopSyncServer() {
-        if (!httpServiceRunning)
+        if (!httpServiceRunning) {
+            Log.d("WM","stopSyncServer: already stopped, bail");
             return;
+        }
         Intent serviceIntent = new Intent(this, SyncService.class);
+        Log.d("WM","stopSyncServer: calling stopService()");
         stopService(serviceIntent);
         httpServiceRunning = false;
     }
@@ -221,6 +253,7 @@ public class NewBookListenerService extends Service {
     // Called via EndOfTransferListener when desktop sends transfer complete notification.
     private void transferComplete(boolean success) {
         // We can stop listening for file transfers and notifications from the desktop.
+        Log.d("WM","transferComplete: calling stopSyncServer()");
         stopSyncServer();
         gettingBook = false;
 
@@ -268,6 +301,7 @@ public class NewBookListenerService extends Service {
     // the same version of the same book. BloomReader does not interpret the version information,
     // just compares what is in the  version.txt in the .bloompub/.bloomd file it has (if any) with what it
     // got in the new advertisement.
+    // TODO: consider making this private
     boolean IsBookUpToDate(File bookFile, String title, String newBookVersion) {
         // "version.txt" must match the name given in Bloom Desktop BookCompressor.CompressDirectory()
         byte[] oldShaBytes = IOUtilities.ExtractZipEntry(bookFile, "version.txt");
@@ -276,6 +310,7 @@ public class NewBookListenerService extends Service {
         String oldSha = "";
         try {
             oldSha = new String(oldShaBytes, "UTF-8");
+            Log.d("WM","IsBookUpToDate: oldSha = " + oldSha);  // WM, temporary
             // Some versions of Bloom accidentally put out a version.txt starting with a BOM
             if (oldSha.startsWith("\uFEFF")) {
                 oldSha = oldSha.substring(1);
@@ -288,6 +323,7 @@ public class NewBookListenerService extends Service {
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
+        Log.d("WM","IsBookUpToDate: returning [oldSha.equals(newBookVersion)] = " + oldSha.equals(newBookVersion));  // WM, temporary
         return oldSha.equals(newBookVersion); // not ==, they are different objects.
     }
 
@@ -295,6 +331,7 @@ public class NewBookListenerService extends Service {
     public static final String BROADCAST_BOOK_LISTENER_PROGRESS_CONTENT = "org.sil.bloomreader.booklistener.progress.content";
     public static final String BROADCAST_BOOK_LOADED = "org.sil.bloomreader.booklistener.book.loaded";
 
+    // TODO: consider making this private
     void startListenForUDPBroadcast() {
         UDPBroadcastThread = new Thread(new Runnable() {
             public void run() {
@@ -309,23 +346,28 @@ public class NewBookListenerService extends Service {
                 }
             }
         });
+        Log.d("WM", "startListenForUDPBroadcast: starting UDPBroadcastThread (ID = " + UDPBroadcastThread.getId() + ")");
         UDPBroadcastThread.start();
     }
 
+    // TODO: consider making this private
     void stopListen() {
         shouldRestartSocketListen = false;
         if (socket != null)
+            Log.d("WM","stopListen: closing socket");
             socket.close();
     }
 
     @Override
     public void onDestroy() {
+        Log.d("WM","onDestroy: calling stopListen()");
         stopListen();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         shouldRestartSocketListen = true;
+        Log.d("WM","onStartCommand: calling startListenForUDPBroadcast()");
         startListenForUDPBroadcast();
         //Log.i("UDP", "Service started");
         return START_STICKY;
