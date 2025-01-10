@@ -353,9 +353,10 @@ public class NewBookListenerService extends Service {
     // TODO: consider making this private
     void stopListen() {
         shouldRestartSocketListen = false;
-        if (socket != null)
-            Log.d("WM","stopListen: closing socket");
+        if (socket != null) {
+            Log.d("WM", "stopListen: closing socket");
             socket.close();
+        }
     }
 
     @Override
