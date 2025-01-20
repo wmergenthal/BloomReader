@@ -159,10 +159,12 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
                 else
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_file), title, sender) + "\n");
+
                 // It can take a few seconds for the transfer to get going. We won't ask for this again unless
                 // we don't start getting it in a reasonable time.
-                Log.d("WM","listen: requesting book");
                 addsToSkipBeforeRetry = 3;
+
+                Log.d("WM","listen: requesting book");
                 getBook(senderIP, title);
             }
         } catch (JSONException e) {
@@ -195,8 +197,8 @@ public class NewBookListenerService extends Service {
             // Once the receive actually starts, don't start more receives until we deal with this.
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
+            Log.d("WM","getting \"" + name + "\", setting 'gettingBook'=true");
             gettingBook = true;
-            Log.d("WM","receivingFile: \"" + name + "\"");
         }
 
         @Override
@@ -398,6 +400,14 @@ public class NewBookListenerService extends Service {
                 }
                 byte[] buffer = data.toString().getBytes("UTF-8");
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPort);
+
+                // WM, packet print start
+                int udpPktLen = packet.getLength();
+                byte[] pktBytes = packet.getData();
+                String pktString = new String(pktBytes);
+                Log.d("WM", "SendMessage, sending book request = " + pktString.substring(0, udpPktLen));
+                // WM, packet print end
+
                 socket.send(packet);
             } catch (IOException e) {
                 e.printStackTrace();
