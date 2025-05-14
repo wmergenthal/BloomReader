@@ -11,6 +11,8 @@ import android.os.Bundle;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ScrollView;
@@ -110,19 +112,26 @@ public class GetFromWiFiActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         String wifiName = getWifiName(this);
+        Log.d("WM","GetFromWiFiActivity::onResume, wifiName-A = " + wifiName); // WM, TEMPORARY
         if (wifiName == null)
         {
+            Log.d("WM","GetFromWiFiActivity::onResume, wifiName is null"); // WM, TEMPORARY
             GetFromWiFiActivity.sendProgressMessage(this, getString(R.string.no_wifi_connected) + "\n\n");
         }
         else {
             // For some reason the name of the ILC network comes with quotes already around it.
             // Since we want one lot of quotes but not two, decided to add them if missing.
-            if (!wifiName.startsWith("\""))
+            if (!wifiName.startsWith("\"")) {
                 wifiName = "\"" + wifiName;
-            if (!wifiName.endsWith("\""))
+                //Log.d("WM","GetFromWiFiActivity::onResume, wifiName-B = " + wifiName); // WM, TEMPORARY
+            }
+            if (!wifiName.endsWith("\"")) {
                 wifiName = wifiName + "\"";
+                //Log.d("WM","GetFromWiFiActivity::onResume, wifiName-C = " + wifiName); // WM, TEMPORARY
+            }
             GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.looking_for_adds), wifiName) + "\n\n");
 
+            Log.d("WM","GetFromWiFiActivity::onResume, calling startBookListener()"); // WM, TEMPORARY
             startBookListener();
         }
     }
@@ -144,18 +153,28 @@ public class GetFromWiFiActivity extends BaseActivity {
     public String getWifiName(Context context) {
         WifiManager manager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (manager.isWifiEnabled()) {
+            Log.d("WM","GetFromWiFiActivity::getWifiName, calling getConnectionInfo()");
             WifiInfo wifiInfo = manager.getConnectionInfo();
             if (wifiInfo != null) {
                 NetworkInfo.DetailedState state = WifiInfo.getDetailedStateOf(wifiInfo.getSupplicantState());
+                Log.d("WM","GetFromWiFiActivity::getWifiName, NetworkInfo.DetailedState = " + state);
                 if (state == NetworkInfo.DetailedState.CONNECTED || state == NetworkInfo.DetailedState.OBTAINING_IPADDR) {
+                    Log.d("WM","GetFromWiFiActivity::getWifiName, returning wifiInfo.getSSID()");
                     return wifiInfo.getSSID();
+                } else {
+                    Log.d("WM","GetFromWiFiActivity::getWifiName, state != CONNECTED, != OBTAINING_IPADDR");
                 }
+            } else {
+                Log.d("WM","GetFromWiFiActivity::getWifiName, wifiInfo is null");
             }
+        } else {
+            Log.d("WM","GetFromWiFiActivity::getWifiName, wifi is not enabled");
         }
 
         if (deviceHotspotActive(manager))
             return getString(R.string.device_hotspot);
 
+        Log.d("WM","GetFromWiFiActivity::getWifiName, returning null");
         return null;
     }
 
@@ -175,6 +194,7 @@ public class GetFromWiFiActivity extends BaseActivity {
 
     private void startBookListener() {
         Intent serviceIntent = new Intent(this, NewBookListenerService.class);
+        Log.d("WM","GetFromWiFiActivity::startBookListener, calling startService(NewBookListenerService)");
         startService(serviceIntent);
     }
 

@@ -86,7 +86,7 @@ public class NewBookListenerService extends Service {
             byte[] pktBytes = packet.getData();
             String pktString = new String(pktBytes);
             Log.d("WM", "listen: got UDP packet (" + udpPktLen + " bytes) from " + packet.getAddress().getHostAddress());
-            Log.d("WM", "   advertisement = " + pktString.substring(0, udpPktLen));
+            Log.d("WM", "  advertisement = " + pktString.substring(0, udpPktLen));
             // WM, packet print end
 
             if (gettingBook) {
@@ -197,7 +197,7 @@ public class NewBookListenerService extends Service {
             // Once the receive actually starts, don't start more receives until we deal with this.
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
-            Log.d("WM","getting \"" + name + "\", setting 'gettingBook'=true");
+            Log.d("WM","receivingFile: getting \"" + name + "\", setting 'gettingBook'");
             gettingBook = true;
         }
 
@@ -223,10 +223,13 @@ public class NewBookListenerService extends Service {
         startSyncServer();
         // Send one package to the desktop to request the book. Its contents tell the desktop
         // what IP address to use.
+        Log.d("WM","getBook: instantiating new SendMessage");
         SendMessage sendMessageTask = new SendMessage();
         sendMessageTask.desktopIpAddress = sourceIP;
         sendMessageTask.ourIpAddress = getOurIpAddress();
         sendMessageTask.ourDeviceName = getOurDeviceName();
+        Log.d("WM","  remoteIP = " + sendMessageTask.desktopIpAddress + ", localIP = " + sendMessageTask.ourIpAddress);
+        Log.d("WM","  calling sendMessageTask.execute()");
         sendMessageTask.execute();
     }
 
@@ -255,7 +258,7 @@ public class NewBookListenerService extends Service {
     // Called via EndOfTransferListener when desktop sends transfer complete notification.
     private void transferComplete(boolean success) {
         // We can stop listening for file transfers and notifications from the desktop.
-        Log.d("WM","transferComplete: calling stopSyncServer()");
+        Log.d("WM","transferComplete: calling stopSyncServer(), clearing 'gettingBook'");
         stopSyncServer();
         gettingBook = false;
 
@@ -387,6 +390,7 @@ public class NewBookListenerService extends Service {
         protected Void doInBackground(Void... params) {
             try {
                 InetAddress receiverAddress = InetAddress.getByName(desktopIpAddress);
+                //Log.d("WM", "SendMessage: desktopIpAddress = " + desktopIpAddress);
                 DatagramSocket socket = new DatagramSocket();
                 JSONObject data = new JSONObject();
                 try {
@@ -405,10 +409,12 @@ public class NewBookListenerService extends Service {
                 int udpPktLen = packet.getLength();
                 byte[] pktBytes = packet.getData();
                 String pktString = new String(pktBytes);
-                Log.d("WM", "SendMessage, sending book request = " + pktString.substring(0, udpPktLen));
+                Log.d("WM", "SendMessage: sending book request to " + receiverAddress.getHostAddress());
+                Log.d("WM", "  " + pktString.substring(0, udpPktLen));
                 // WM, packet print end
 
                 socket.send(packet);
+                Log.d("WM", "SendMessage: book request sent");
             } catch (IOException e) {
                 e.printStackTrace();
             }
