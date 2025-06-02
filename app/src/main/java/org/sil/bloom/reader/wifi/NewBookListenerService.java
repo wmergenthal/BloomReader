@@ -25,6 +25,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -42,7 +43,7 @@ import static org.sil.bloom.reader.BloomReaderApplication.getOurDeviceName;
 public class NewBookListenerService extends Service {
     DatagramSocket socket;
     Thread UDPBroadcastThread;
-    private Boolean shouldRestartSocketListen=true;
+    private Boolean shouldRestartSocketListen = true;
 
     // port on which the desktop is listening for our book request.
     // Must match Bloom Desktop UDPListener._portToListen.
@@ -90,17 +91,17 @@ public class NewBookListenerService extends Service {
             // WM, packet print end
 
             if (gettingBook) {
-                Log.d("WM","listen: ignore advert (getting book), returning");
+                Log.d("WM", "listen: ignore advert (getting book), returning");
                 return; // ignore new advertisements while downloading. Will receive again later.
             }
             if (addsToSkipBeforeRetry > 0) {
                 // We ignore a few adds after requesting a book before we (hopefully) start receiving.
                 addsToSkipBeforeRetry--;
-                Log.d("WM","listen: ignore advert (decr'd skips, now = " + addsToSkipBeforeRetry + "), returning");
+                Log.d("WM", "listen: ignore advert (decr'd skips, now = " + addsToSkipBeforeRetry + "), returning");
                 return;
             }
             String senderIP = packet.getAddress().getHostAddress();
-            Log.d("WM","listen: accept advert from " + senderIP + ", compose request");
+            Log.d("WM", "listen: accept advert from " + senderIP + ", compose request");
             String message = new String(packet.getData()).trim();
             JSONObject data = new JSONObject(message);
             String title = data.getString("title");
@@ -110,16 +111,16 @@ public class NewBookListenerService extends Service {
             try {
                 protocolVersion = data.getString("protocolVersion");
                 sender = data.getString("sender");
-            } catch(JSONException e) {
+            } catch (JSONException e) {
                 e.printStackTrace();
             }
             float version = Float.parseFloat(protocolVersion);
-            if (version <  2.0f) {
+            if (version < 2.0f) {
                 if (!reportedVersionProblem) {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of Bloom editor to exchange data with this BloomReader\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","listen: bad version, < 2.0, don't request");
+                Log.d("WM", "listen: bad version, < 2.0, don't request");
                 return;
             } else if (version >= 3.0f) {
                 // Desktop currently uses 2.0 exactly; the plan is that non-breaking changes
@@ -128,7 +129,7 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, "You need a newer version of BloomReader to exchange data with this sender\n");
                     reportedVersionProblem = true;
                 }
-                Log.d("WM","listen: bad version, >= 3.0, don't request");
+                Log.d("WM", "listen: bad version, >= 3.0, don't request");
                 return;
             }
             File bookFile = IOUtilities.getBookFileIfExists(title);
@@ -152,9 +153,8 @@ public class NewBookListenerService extends Service {
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.already_have_version), title) + "\n\n");
                     _announcedBooks.add(title); // don't keep saying this.
                 }
-                Log.d("WM","listen: already have this, don't request");
-            }
-            else {
+                Log.d("WM", "listen: already have this, don't request");
+            } else {
                 if (bookExists)
                     GetFromWiFiActivity.sendProgressMessage(this, String.format(getString(R.string.found_new_version), title, sender) + "\n");
                 else
@@ -164,16 +164,15 @@ public class NewBookListenerService extends Service {
                 // we don't start getting it in a reasonable time.
                 addsToSkipBeforeRetry = 3;
 
-                Log.d("WM","listen: requesting book");
+                Log.d("WM", "listen: requesting book");
                 getBook(senderIP, title);
             }
         } catch (JSONException e) {
             // This can stay in production. Just ignore any broadcast packet that doesn't have
             // the data we expect.
             e.printStackTrace();
-        }
-        finally {
-            Log.d("WM","listen: normal socket close and lock release");
+        } finally {
+            Log.d("WM", "listen: normal socket close and lock release");
             socket.close();
             multicastLock.release();
         }
@@ -187,6 +186,7 @@ public class NewBookListenerService extends Service {
 
         NewBookListenerService _parent;
         String _title;
+
         public EndOfTransferListener(NewBookListenerService parent, String title) {
             _parent = parent;
             _title = title;
@@ -197,7 +197,7 @@ public class NewBookListenerService extends Service {
             // Once the receive actually starts, don't start more receives until we deal with this.
             // If our request for the book didn't produce a response, we'll ask again when we get
             // the next notification.
-            Log.d("WM","receivingFile: getting \"" + name + "\", setting 'gettingBook'");
+            Log.d("WM", "receivingFile: getting \"" + name + "\", setting 'gettingBook'");
             gettingBook = true;
         }
 
@@ -221,16 +221,97 @@ public class NewBookListenerService extends Service {
         AcceptFileHandler.requestFileReceivedNotification(new EndOfTransferListener(this, title));
         // This server will be sent the actual book data (and the final notification)
         startSyncServer();
+
         // Send one package to the desktop to request the book. Its contents tell the desktop
         // what IP address to use.
-        Log.d("WM","getBook: instantiating new SendMessage");
-        SendMessage sendMessageTask = new SendMessage();
-        sendMessageTask.desktopIpAddress = sourceIP;
-        sendMessageTask.ourIpAddress = getOurIpAddress();
-        sendMessageTask.ourDeviceName = getOurDeviceName();
-        Log.d("WM","  remoteIP = " + sendMessageTask.desktopIpAddress + ", localIP = " + sendMessageTask.ourIpAddress);
-        Log.d("WM","  calling sendMessageTask.execute()");
-        sendMessageTask.execute();
+
+        // To rule out a problem using sendMessageTask, whose execute() is deprecated, try an
+        // alternative.
+        //Log.d("WM","getBook: instantiating new SendMessage");
+        //SendMessage sendMessageTask = new SendMessage();
+        //sendMessageTask.desktopIpAddress = sourceIP;
+        //sendMessageTask.ourIpAddress = getOurIpAddress();
+        //sendMessageTask.ourDeviceName = getOurDeviceName();
+        //Log.d("WM","  remoteIP = " + sendMessageTask.desktopIpAddress + ", localIP = " + sendMessageTask.ourIpAddress);
+        //Log.d("WM","  calling sendMessageTask.execute()");
+        //sendMessageTask.execute();
+
+        // Create and bind the UDP socket here and send the UDP packet.
+        // It will be on the same thread but that should be fine; NewBookListenerService doesn't
+        // have anything better to do. We're making a book request so there is no need to resume
+        // listening for adverts.
+        byte[] buffer;
+        DatagramPacket packet;
+
+        // Create socket.
+        try {
+            Log.d("WM", "getBook: EXPMT - create socket");
+            DatagramSocket socket = new DatagramSocket();
+            Log.d("WM", "getBook: EXPMT - connect socket");
+            socket.connect(InetAddress.getByName(sourceIP), desktopPort);
+        } catch (Exception e) {
+            Log.d("WM", "getBook: EXPMT - " + e);
+            e.printStackTrace();
+            return;
+        }
+
+        // Create book request message, starting as a piece of JSON then converted to a serial
+        // byte stream for transmission.
+        try {
+            Log.d("WM", "getBook: EXPMT - create JSON object");
+            JSONObject data = new JSONObject();
+            // names used here must match those in Bloom WiFiAdvertiser.Start(),
+            // in the event handler for _wifiListener.NewMessageReceived.
+            data.put("deviceAddress", getOurIpAddress());
+            data.put("deviceName", getOurDeviceName());
+            Log.d("WM", "getBook: EXPMT - convert JSON to string");
+            buffer = data.toString().getBytes("UTF-8");
+        } catch (JSONException e) {
+            // How could these fail?? But compiler demands we catch this.
+            Log.d("WM", "getBook: EXPMT - " + e);
+            e.printStackTrace();
+            return;
+        } catch (UnsupportedEncodingException e) {
+            Log.d("WM", "getBook: EXPMT - " + e);
+            e.printStackTrace();
+            return;
+        }
+
+        // Put the message into a UDP packet.
+        try {
+            Log.d("WM", "getBook: EXPMT - create packet");
+            packet = new DatagramPacket(buffer, buffer.length, InetAddress.getByName(sourceIP), desktopPort);
+        } catch (UnknownHostException e) {
+            Log.d("WM", "getBook: EXPMT - " + e);
+            e.printStackTrace();
+            return;
+        }
+
+        // DEBUG: packet print start
+        //int udpPktLen = packet.getLength();
+        //byte[] pktBytes = packet.getData();
+        //String pktString = new String(pktBytes);
+        //Log.d("WM", "getBook: sending book request to " + sourceIP + ":" + desktopPort);
+        //Log.d("WM", "  " + pktString.substring(0, udpPktLen));
+        // DEBUG: packet print end
+        printRequestPkt(packet, sourceIP);
+
+        // Send the packet.
+        try {
+            socket.send(packet);
+            Log.d("WM", "getBook: book request sent");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Debug function: print the book request content.
+    private void printRequestPkt(DatagramPacket pkt, String ip) {
+        int udpPktLen = pkt.getLength();
+        byte[] pktBytes = pkt.getData();
+        String pktString = new String(pktBytes);
+        Log.d("WM","book request to " + ip + ":" + desktopPort);
+        Log.d("WM","  " + pktString.substring(0,udpPktLen));
     }
 
     private void startSyncServer() {
@@ -381,44 +462,44 @@ public class NewBookListenerService extends Service {
 
     // This class is responsible to send one message packet to the IP address we
     // obtained from the desktop, containing the Android's own IP address.
-    private static class SendMessage extends AsyncTask<Void, Void, Void> {
-
-        public String ourIpAddress;
-        public String desktopIpAddress;
-        public String ourDeviceName;
-        @Override
-        protected Void doInBackground(Void... params) {
-            try {
-                InetAddress receiverAddress = InetAddress.getByName(desktopIpAddress);
-                //Log.d("WM", "SendMessage: desktopIpAddress = " + desktopIpAddress);
-                DatagramSocket socket = new DatagramSocket();
-                JSONObject data = new JSONObject();
-                try {
-                    // names used here must match those in Bloom WiFiAdvertiser.Start(),
-                    // in the event handler for _wifiListener.NewMessageReceived.
-                    data.put("deviceAddress", ourIpAddress);
-                    data.put("deviceName", ourDeviceName);
-                } catch (JSONException e) {
-                    // How could these fail?? But compiler demands we catch this.
-                    e.printStackTrace();
-                }
-                byte[] buffer = data.toString().getBytes("UTF-8");
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPort);
-
-                // WM, packet print start
-                int udpPktLen = packet.getLength();
-                byte[] pktBytes = packet.getData();
-                String pktString = new String(pktBytes);
-                Log.d("WM", "SendMessage: sending book request to " + receiverAddress.getHostAddress());
-                Log.d("WM", "  " + pktString.substring(0, udpPktLen));
-                // WM, packet print end
-
-                socket.send(packet);
-                Log.d("WM", "SendMessage: book request sent");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-    }
+    //private static class SendMessage extends AsyncTask<Void, Void, Void> {
+    //
+    //    public String ourIpAddress;
+    //    public String desktopIpAddress;
+    //    public String ourDeviceName;
+    //    @Override
+    //    protected Void doInBackground(Void... params) {
+    //        try {
+    //            InetAddress receiverAddress = InetAddress.getByName(desktopIpAddress);
+    //            //Log.d("WM", "SendMessage: desktopIpAddress = " + desktopIpAddress);
+    //            DatagramSocket socket = new DatagramSocket();
+    //            JSONObject data = new JSONObject();
+    //            try {
+    //                // names used here must match those in Bloom WiFiAdvertiser.Start(),
+    //                // in the event handler for _wifiListener.NewMessageReceived.
+    //                data.put("deviceAddress", ourIpAddress);
+    //                data.put("deviceName", ourDeviceName);
+    //            } catch (JSONException e) {
+    //                // How could these fail?? But compiler demands we catch this.
+    //                e.printStackTrace();
+    //            }
+    //            byte[] buffer = data.toString().getBytes("UTF-8");
+    //            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, receiverAddress, desktopPort);
+    //
+    //            // WM, packet print start
+    //            int udpPktLen = packet.getLength();
+    //            byte[] pktBytes = packet.getData();
+    //            String pktString = new String(pktBytes);
+    //            Log.d("WM", "SendMessage: sending book request to " + receiverAddress.getHostAddress() + ":" + desktopPort);
+    //            Log.d("WM", "  " + pktString.substring(0, udpPktLen));
+    //            // WM, packet print end
+    //
+    //            socket.send(packet);
+    //            Log.d("WM", "SendMessage: book request sent");
+    //        } catch (IOException e) {
+    //            e.printStackTrace();
+    //        }
+    //        return null;
+    //    }
+    //}
 }
